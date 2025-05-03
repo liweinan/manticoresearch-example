@@ -407,11 +407,14 @@ source documents_delta {
 
 1. **Initial Setup**:
 ```bash
-# Create main index
-indexer --config /etc/manticoresearch/manticore.conf --all
+# Create main index (only rebuild main index, not delta)
+indexer --config /etc/manticoresearch/manticore.conf main_index
 
 # Create delta index
 indexer --config /etc/manticoresearch/manticore.conf delta_index
+
+# Note: Using --all would rebuild both indexes, which is not recommended
+# as it would lose any recent changes in the delta index
 ```
 
 2. **Crontab Configuration**:
@@ -423,15 +426,30 @@ crontab -e
 # Delta index updates (every 5 minutes)
 */5 * * * * /usr/bin/indexer --config /etc/manticoresearch/manticore.conf delta_index --rotate
 
-# Main index merge (daily at 2 AM)
+# Delta to main index merge (daily at 2 AM)
+# This is the only time main index is updated
 0 2 * * * /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --merge main_index delta_index --rotate
 
 # Index optimization (weekly on Sunday at 3 AM)
+# Only optimize main index after merge
 0 3 * * 0 /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --optimize main_index
 
 # Log rotation (daily at 1 AM)
 0 1 * * * /usr/bin/find /var/log/manticore/ -name "*.log" -mtime +7 -delete
 ```
+
+The schedule is designed to:
+1. Keep delta index updated frequently (every 5 minutes) for recent changes
+2. Merge delta into main index daily (2 AM) - this is the only time main index is updated
+3. Optimize main index weekly (Sunday 3 AM) after merge
+4. Rotate logs daily (1 AM)
+
+This sequence ensures:
+- Recent changes are quickly available in delta index
+- Main index is only updated through merging with delta
+- No redundant updates to main index
+- Optimization is done on a clean, merged index
+- No overlap between operations
 
 3. **Monitoring Script**:
 ```bash
