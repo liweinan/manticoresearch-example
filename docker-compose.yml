@@ -1,52 +1,62 @@
+# Docker Compose configuration for the multilingual search application
+# This file defines three services:
+# 1. PostgreSQL - Database service
+# 2. Manticore Search - Search engine service
+# 3. Flask App - Web application service
+
 services:
+  # PostgreSQL service configuration
   postgres:
-    image: postgres:15
+    image: postgres:15                    # Use PostgreSQL 15
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: search_db
+      POSTGRES_USER: postgres            # Database username
+      POSTGRES_PASSWORD: postgres        # Database password
+      POSTGRES_DB: search_db             # Database name
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf
-    command: postgres -c 'hba_file=/etc/postgresql/pg_hba.conf'
+      - postgres_data:/var/lib/postgresql/data  # Persistent data storage
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf  # Authentication configuration
+    command: postgres -c 'hba_file=/etc/postgresql/pg_hba.conf'  # Use custom auth config
     ports:
-      - "5432:5432"
+      - "5432:5432"                      # Expose PostgreSQL port
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U postgres"]  # Check if PostgreSQL is ready
+      interval: 5s                       # Check every 5 seconds
+      timeout: 5s                        # Timeout after 5 seconds
+      retries: 5                         # Retry 5 times before failing
 
+  # Manticore Search service configuration
   manticore:
-    image: manticoresearch/manticore:latest
+    image: manticoresearch/manticore:latest  # Use latest Manticore Search
     volumes:
-      - ./manticore.conf:/etc/manticoresearch/manticore.conf
-      - manticore_data:/var/lib/manticore
+      - ./manticore.conf:/etc/manticoresearch/manticore.conf  # Search configuration
+      - manticore_data:/var/lib/manticore  # Persistent search index storage
     ports:
-      - "9306:9306"
-      - "9308:9308"
+      - "9306:9306"                      # MySQL protocol port
+      - "9308:9308"                      # HTTP/JSON protocol port
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy        # Wait for PostgreSQL to be ready
 
+  # Flask application service configuration
   app:
-    build: .
+    build: .                             # Build from local Dockerfile
     volumes:
-      - .:/app
+      - .:/app                           # Mount current directory to /app
     ports:
-      - "8080:5000"
+      - "8080:5000"                      # Map host port 8080 to container port 5000
     environment:
-      - POSTGRES_HOST=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=search_db
-      - MANTICORE_HOST=manticore
+      - POSTGRES_HOST=postgres           # PostgreSQL hostname
+      - POSTGRES_USER=postgres           # PostgreSQL username
+      - POSTGRES_PASSWORD=postgres       # PostgreSQL password
+      - POSTGRES_DB=search_db            # PostgreSQL database name
+      - MANTICORE_HOST=manticore         # Manticore Search hostname
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy        # Wait for PostgreSQL to be ready
       manticore:
-        condition: service_started
+        condition: service_started        # Wait for Manticore to start
 
+# Define named volumes for persistent data storage
 volumes:
-  postgres_data:
-  manticore_data: 
+  postgres_data:                         # PostgreSQL data volume
+  manticore_data:                        # Manticore Search data volume 

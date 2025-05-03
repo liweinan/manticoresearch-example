@@ -1,3 +1,21 @@
+"""
+Multilingual Search Application with Manticore Search
+
+This Flask application provides a multilingual search interface that supports both Chinese and English text.
+It uses:
+- PostgreSQL for data storage
+- Manticore Search for full-text search capabilities
+- Jieba for Chinese word segmentation
+- Flask for the web interface
+
+The application demonstrates:
+1. Integration of multiple services (PostgreSQL, Manticore Search)
+2. Chinese text processing with Jieba
+3. JSONB data handling in PostgreSQL
+4. RESTful API implementation
+5. Error handling and logging
+"""
+
 import os
 import time
 import json
@@ -7,32 +25,52 @@ import jieba
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 
-# Load environment variables
+# Load environment variables from .env file
+# This allows configuration without hardcoding sensitive information
 load_dotenv()
 
-# Initialize Jieba with dictionary
+# Initialize Jieba with the large dictionary for better Chinese word segmentation
+# The dictionary contains more words and better handles complex Chinese characters
 jieba.set_dictionary('data/dict.txt.big')
 
-# Database connection parameters
+# Database connection parameters for PostgreSQL
+# These can be overridden by environment variables for flexibility
 DB_PARAMS = {
-    'host': os.getenv('POSTGRES_HOST', 'postgres'),
-    'user': os.getenv('POSTGRES_USER', 'postgres'),
-    'password': os.getenv('POSTGRES_PASSWORD', 'postgres'),
-    'dbname': os.getenv('POSTGRES_DB', 'search_db'),
-    'port': 5432
+    'host': os.getenv('POSTGRES_HOST', 'postgres'),      # PostgreSQL host
+    'user': os.getenv('POSTGRES_USER', 'postgres'),      # Database user
+    'password': os.getenv('POSTGRES_PASSWORD', 'postgres'),  # Database password
+    'dbname': os.getenv('POSTGRES_DB', 'search_db'),     # Database name
+    'port': 5432                                         # PostgreSQL port
 }
 
 # Manticore Search connection parameters
+# Manticore Search provides both MySQL and HTTP interfaces
 MANTICORE_PARAMS = {
-    'host': os.getenv('MANTICORE_HOST', 'manticore'),
-    'port': 9306,
-    'user': '',
-    'password': '',
-    'database': ''
+    'host': os.getenv('MANTICORE_HOST', 'manticore'),    # Manticore Search host
+    'port': 9306,                                        # MySQL protocol port
+    'user': '',                                          # No authentication required
+    'password': '',                                      # No password required
+    'database': ''                                       # No specific database required
 }
 
 def wait_for_postgres(max_retries=10, delay=10):
-    """Wait for PostgreSQL to be ready."""
+    """
+    Wait for PostgreSQL to be ready before proceeding.
+    
+    This is important in Docker environments where services might start in different orders.
+    The function will:
+    1. Try to connect to PostgreSQL
+    2. If successful, return True
+    3. If failed, wait and retry up to max_retries times
+    4. If all retries fail, return False
+    
+    Args:
+        max_retries (int): Maximum number of connection attempts
+        delay (int): Seconds to wait between retries
+    
+    Returns:
+        bool: True if connection successful, False otherwise
+    """
     retries = 0
     while retries < max_retries:
         try:
@@ -52,7 +90,22 @@ def wait_for_postgres(max_retries=10, delay=10):
                 return False
 
 def init_db():
-    """Initialize the database with sample data."""
+    """
+    Initialize the database with sample data.
+    
+    This function:
+    1. Creates the documents table if it doesn't exist
+    2. Clears any existing data
+    3. Inserts sample documents with mixed Chinese and English content
+    4. Each document has a title and JSONB content containing text and tags
+    
+    The sample data demonstrates:
+    - Chinese text handling
+    - English text handling
+    - Mixed language content
+    - JSONB data structure
+    - Tag-based categorization
+    """
     if not wait_for_postgres():
         return
 
@@ -60,6 +113,7 @@ def init_db():
     cur = conn.cursor()
 
     # Create table if it doesn't exist
+    # The content field uses JSONB for flexible document structure
     cur.execute("""
         CREATE TABLE IF NOT EXISTS documents (
             id SERIAL PRIMARY KEY,
@@ -68,18 +122,24 @@ def init_db():
         )
     """)
 
-    # Clear existing data
+    # Clear existing data and reset the sequence
     cur.execute("TRUNCATE TABLE documents RESTART IDENTITY CASCADE")
 
-    # Insert sample data with mixed Chinese and English text
+    # Sample data demonstrating various search scenarios
     sample_data = [
+        # Document with Chinese text and mixed tags
         ("文档1", {"text": "这是一个测试文档，包含一些中文内容。This is a test document with some Chinese content.", "tags": ["测试", "中文", "test"]}),
+        # Document with Chinese text and mixed tags
         ("文档2", {"text": "这是另一个文档，也包含中文内容。Another document with Chinese content.", "tags": ["示例", "中文", "example"]}),
+        # Document with Chinese text and mixed tags
         ("文档3", {"text": "第三个文档，同样包含中文内容。The third document also contains Chinese content.", "tags": ["测试", "示例", "third"]}),
+        # Pure English document
         ("Document 4", {"text": "This is a pure English document for testing search functionality.", "tags": ["english", "test"]}),
+        # Pure English document
         ("Document 5", {"text": "Another English document to verify search capabilities.", "tags": ["english", "verify"]})
     ]
 
+    # Insert each document into the database
     for title, content in sample_data:
         cur.execute(
             "INSERT INTO documents (title, content) VALUES (%s, %s)",
@@ -91,14 +151,42 @@ def init_db():
     conn.close()
     print("Database initialized with sample data")
 
+# Initialize Flask application
 app = Flask(__name__)
 
 @app.route('/')
 def index():
+    """
+    Render the main search page.
+    
+    Returns:
+        str: Rendered HTML template
+    """
     return render_template('index.html')
 
 @app.route('/search', methods=['GET', 'POST'])
 def search():
+    """
+    Handle search requests.
+    
+    This endpoint:
+    1. Accepts both GET and POST requests
+    2. Processes queries in both Chinese and English
+    3. Uses Jieba for Chinese word segmentation
+    4. Searches using Manticore Search
+    5. Returns results in JSON format
+    
+    The function demonstrates:
+    - URL parameter handling
+    - JSON request handling
+    - Chinese text processing
+    - Database querying
+    - Error handling
+    - Response formatting
+    
+    Returns:
+        JSON: Search results or error message
+    """
     try:
         # Get query from either POST JSON or GET parameter
         if request.method == 'POST':
@@ -106,21 +194,22 @@ def search():
             query = data.get('query', '')
         else:
             query = request.args.get('q', '')
-            # Decode URL-encoded query
+            # Decode URL-encoded query for Chinese characters
             query = query.encode('latin1').decode('utf-8')
 
         if not query:
             return jsonify([])
 
-        # Tokenize the query using Jieba
+        # Tokenize the query using Jieba for Chinese text
+        # This splits Chinese text into meaningful words
         tokens = list(jieba.cut(query))
         search_query = ' '.join(tokens)
 
-        # Connect to Manticore Search
+        # Connect to Manticore Search using MySQL protocol
         conn = mysql.connector.connect(**MANTICORE_PARAMS)
         cursor = conn.cursor(dictionary=True)
 
-        # Execute search query with proper escaping
+        # Execute search query with proper escaping to prevent SQL injection
         safe_query = search_query.replace("'", "''")
         query_sql = f"""
             SELECT id, title, content_text, content_json
@@ -130,10 +219,11 @@ def search():
         """
         cursor.execute(query_sql, (safe_query,))
 
+        # Process and format results
         results = []
         for row in cursor:
             try:
-                # Parse the JSON content
+                # Parse the JSON content and combine with text
                 content_json = json.loads(row['content_json'])
                 content_data = {
                     'text': row['content_text'],
@@ -159,5 +249,6 @@ def search():
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
+    # Initialize database and start the Flask application
     init_db()
     app.run(host='0.0.0.0', port=5000) 
