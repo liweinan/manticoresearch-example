@@ -97,6 +97,29 @@ The web interface provides:
 - Display of document titles, content, and tags
 - Support for mixed language queries
 
+### Search Examples
+
+You can try various types of searches in the web interface:
+
+1. Chinese searches:
+   - `测试` (test)
+   - `中文` (Chinese)
+   - `文档` (document)
+
+2. English searches:
+   - `test`
+   - `english`
+   - `search functionality`
+
+3. Mixed language searches:
+   - `测试 test`
+   - `中文 english`
+
+The search results will show:
+- Document title
+- Content snippet
+- Tags (if any)
+
 ### Using the Search API
 
 The search API supports both GET and POST requests:
