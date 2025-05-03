@@ -15,21 +15,26 @@ jobs:
     
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
-    
+      
+    - name: Install Docker Compose
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y docker-compose-plugin
+        
     - name: Download Jieba dictionary
       run: |
         wget https://raw.githubusercontent.com/fxsjy/jieba/master/extra_dict/dict.txt.big
         
     - name: Build Docker images
-      run: docker-compose build
+      run: docker compose build
       
     - name: Start services
-      run: docker-compose up -d
+      run: docker compose up -d
       
     - name: Wait for services to be ready
       run: |
         sleep 30
-        docker-compose ps
+        docker compose ps
         
     - name: Make test scripts executable
       run: chmod +x test_web_search.sh test_mixed_search.sh
@@ -43,4 +48,4 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        docker-compose down -v 
+        docker compose down -v 
