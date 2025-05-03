@@ -11,7 +11,7 @@ graph TD
     subgraph Containers
         direction LR
         subgraph Flask Container
-            Flask[Flask App<br>Port: 6000]
+            Flask[Flask App<br>Port: 8080]
             Jieba[Jieba]
             Flask --> |Tokenization| Jieba
         end
@@ -104,7 +104,7 @@ docker-compose ps
 
 After starting the services, you can access the web interface at:
 ```
-http://localhost:6000
+http://localhost:8080
 ```
 
 The web interface provides:
@@ -142,12 +142,12 @@ The search API supports both GET and POST requests:
 
 #### Using GET
 ```bash
-curl "http://localhost:6000/search?q=测试"
+curl "http://localhost:8080/search?q=测试"
 ```
 
 #### Using POST
 ```bash
-curl -X POST "http://localhost:6000/search" \
+curl -X POST "http://localhost:8080/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "测试"}'
 ```
@@ -156,21 +156,21 @@ curl -X POST "http://localhost:6000/search" \
 
 1. Chinese search:
 ```bash
-curl -X POST "http://localhost:6000/search" \
+curl -X POST "http://localhost:8080/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "中文"}'
 ```
 
 2. English search:
 ```bash
-curl -X POST "http://localhost:6000/search" \
+curl -X POST "http://localhost:8080/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "test"}'
 ```
 
 3. Mixed language search:
 ```bash
-curl -X POST "http://localhost:6000/search" \
+curl -X POST "http://localhost:8080/search" \
      -H "Content-Type: application/json" \
      -d '{"query": "测试 test"}'
 ```
@@ -220,7 +220,7 @@ This script tests:
 
 ### Flask Application
 
-- Port: 6000 (mapped from container port 5000)
+- Port: 8080 (mapped from container port 5000)
 - Debug mode: Enabled
 - Jieba dictionary: Uses dict.txt.big for better Chinese word segmentation
 
