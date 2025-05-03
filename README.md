@@ -604,12 +604,12 @@ SHOW INDEX documents REPLICATION;
 | Aspect | MySQL Binary Log | PostgreSQL Percona |
 |--------|-----------------|-------------------|
 | Change Tracking | Binary log (binlog) | Write-Ahead Log (WAL) |
-| Change Format | Binary format | JSON format |
-| Transaction Support | Yes | Yes |
-| Change Filtering | Limited | Advanced |
+| Change Format | Binary format | Logical Decoding Format (JSON, etc.) |
+| Transaction Support | Yes (5.6+) | Yes |
+| Change Filtering | Limited (table-level) | Advanced (row-level) |
 | Setup Complexity | Moderate | Complex |
-| Performance Impact | Low | Moderate |
-| Version Support | All MySQL versions | PostgreSQL 9.4+ |
+| Performance Impact | Low to Moderate | Low to Moderate |
+| Version Support | MySQL 5.1.5+ | PostgreSQL 9.4+ |
 
 #### Configuration Examples
 
@@ -641,18 +641,20 @@ SELECT * FROM pg_create_logical_replication_slot('manticore_slot', 'wal2json');
 
 | Metric | MySQL Binary Log | PostgreSQL Percona |
 |--------|-----------------|-------------------|
-| Latency | Low | Moderate |
-| CPU Usage | Low | Moderate |
-| Memory Usage | Low | Moderate |
-| Network Usage | Low | Moderate |
+| Latency | Low (with proper config) | Low (with proper config) |
+| CPU Usage | Low to Moderate | Low to Moderate |
+| Memory Usage | Low to Moderate | Low to Moderate |
+| Network Usage | Low to Moderate | Low to Moderate |
 | Scalability | Good | Excellent |
-| Recovery Time | Fast | Moderate |
+| Recovery Time | Fast (with proper config) | Fast (with proper config) |
+| Throughput | High | High |
+| Resource Efficiency | Good | Good |
 
 #### Feature Comparison
 
 1. **Change Tracking**:
    - MySQL: Binary format, efficient but less flexible
-   - PostgreSQL: JSON format, more flexible but higher overhead
+   - PostgreSQL: Logical decoding format, more flexible but higher overhead
 
 2. **Data Consistency**:
    - MySQL: Transaction-based, good for consistency
