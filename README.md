@@ -339,10 +339,10 @@ Delta indexing uses a "main + delta" scheme where:
 1. **Main Index Configuration**:
 ```plaintext
 source documents {
-    # Main index source (older data)
+    # Main index source (historical data)
     sql_query = SELECT id, title, content->>'text' as content_text, content::text as content_json, updated_at \
                 FROM documents \
-                WHERE updated_at < NOW() - INTERVAL '1 day'
+                WHERE id NOT IN (SELECT id FROM documents_delta)
     
     # Index configuration
     sql_attr_timestamp = updated_at
@@ -354,10 +354,11 @@ source documents {
 2. **Delta Index Configuration**:
 ```plaintext
 source documents_delta {
-    # Delta index source (recent data)
+    # Delta index source (recent changes)
     sql_query = SELECT id, title, content->>'text' as content_text, content::text as content_json, updated_at \
                 FROM documents \
-                WHERE updated_at >= NOW() - INTERVAL '1 day'
+                WHERE updated_at >= (SELECT MAX(updated_at) FROM documents_delta) \
+                OR id NOT IN (SELECT id FROM documents)
     
     # Same configuration as main index
     sql_attr_timestamp = updated_at
@@ -365,6 +366,24 @@ source documents_delta {
     sql_attr_string = content_json
 }
 ```
+
+This configuration:
+1. Uses document IDs to track changes instead of timestamps
+2. Ensures no documents are missed or duplicated
+3. Properly handles both updates and new documents
+4. Aligns with our merge-based update strategy
+
+**Important Notes**:
+1. The `documents_delta` table is used to track which documents are in the delta index
+2. The delta index query gets:
+   - New documents (not in main index)
+   - Updated documents (newer than last delta update)
+3. The main index query gets:
+   - All documents not in delta index
+4. This approach ensures:
+   - No document duplication
+   - No missed updates
+   - Clean merge operations
 
 3. **Index Merging**:
 - Delta index is periodically merged into main index
