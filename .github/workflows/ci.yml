@@ -19,7 +19,7 @@ jobs:
     - name: Install Docker Compose
       run: |
         sudo apt-get update
-        sudo apt-get install -y docker-compose-plugin
+        sudo apt-get install -y docker-compose
         
     - name: Download Jieba dictionary
       run: |
@@ -27,26 +27,26 @@ jobs:
         
     - name: Build Docker images
       run: |
-        docker compose build || {
+        docker-compose build || {
           echo "Build failed, showing logs:"
-          docker compose logs
+          docker-compose logs
           exit 1
         }
       
     - name: Start services
       run: |
-        docker compose up -d || {
+        docker-compose up -d || {
           echo "Start services failed, showing logs:"
-          docker compose logs
+          docker-compose logs
           exit 1
         }
       
     - name: Wait for services to be ready
       run: |
         sleep 30
-        docker compose ps || {
+        docker-compose ps || {
           echo "Services not ready, showing logs:"
-          docker compose logs
+          docker-compose logs
           exit 1
         }
         
@@ -62,4 +62,4 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        docker compose down -v 
+        docker-compose down -v 
