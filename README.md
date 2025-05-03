@@ -33,6 +33,33 @@ graph TD
     Manticore --> |Search Results| Flask
 ```
 
+## Manticore Search Architecture
+
+Manticore Search is a powerful full-text search engine that provides multiple interfaces for different use cases:
+
+### MySQL Protocol Interface (Port 9306)
+- Provides a MySQL-compatible interface for SQL queries
+- Uses the MySQL protocol for compatibility with existing tools and libraries
+- **Important Note**: While Manticore uses the MySQL protocol, it is not backed by a MySQL server. It's a standalone search engine that implements the MySQL protocol for compatibility.
+- This interface is ideal for:
+  - Using existing MySQL clients and libraries
+  - Running SQL queries for search operations
+  - Integration with applications that expect MySQL-like behavior
+
+### HTTP Protocol Interface (Port 9308)
+- Provides a RESTful HTTP interface for JSON-based queries
+- More modern and flexible interface
+- Better suited for:
+  - Web applications
+  - JSON-based API interactions
+  - Real-time search operations
+
+### Key Differences from MySQL
+1. **Standalone Engine**: Manticore is a dedicated search engine, not a database server
+2. **Search-First Design**: Optimized for full-text search operations
+3. **Protocol Implementation**: Implements the MySQL protocol for compatibility but doesn't use MySQL internally
+4. **Limited SQL Support**: While it supports many SQL commands, it's focused on search operations rather than general database functionality
+
 ## Features
 
 - Full-text search support for both Chinese and English text
@@ -226,8 +253,8 @@ This script tests the search functionality at the Manticore level, showing both 
 
 ### Manticore Search
 
-- Port: 9306 (MySQL protocol)
-- Port: 9308 (HTTP protocol)
+- Port: 9306 (MySQL protocol) - Provides a MySQL-compatible interface for SQL queries
+- Port: 9308 (HTTP protocol) - Provides a RESTful HTTP interface for JSON-based queries
 - Configuration file: manticore.conf
 - Chinese character support: Configured with ngram tokenization
 
