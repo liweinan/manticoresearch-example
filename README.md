@@ -403,6 +403,120 @@ source documents_delta {
    - The merge is atomic - either completely succeeds or fails
    - Disk space is required for both the old and new indexes during merge
 
+**Complete Delta Indexing Setup Plan**:
+
+1. **Initial Setup**:
+```bash
+# Create main index
+indexer --config /etc/manticoresearch/manticore.conf --all
+
+# Create delta index
+indexer --config /etc/manticoresearch/manticore.conf delta_index
+```
+
+2. **Crontab Configuration**:
+```bash
+# Edit crontab
+crontab -e
+
+# Add the following entries:
+# Delta index updates (every 5 minutes)
+*/5 * * * * /usr/bin/indexer --config /etc/manticoresearch/manticore.conf delta_index --rotate
+
+# Main index merge (daily at 2 AM)
+0 2 * * * /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --merge main_index delta_index --rotate
+
+# Index optimization (weekly on Sunday at 3 AM)
+0 3 * * 0 /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --optimize main_index
+
+# Log rotation (daily at 1 AM)
+0 1 * * * /usr/bin/find /var/log/manticore/ -name "*.log" -mtime +7 -delete
+```
+
+3. **Monitoring Script**:
+```bash
+#!/bin/bash
+# /usr/local/bin/check_manticore.sh
+
+# Check if Manticore is running
+if ! pgrep -x "searchd" > /dev/null; then
+    echo "Manticore Search is not running!"
+    exit 1
+fi
+
+# Check disk space
+DISK_SPACE=$(df -h /var/lib/manticore | awk 'NR==2 {print $5}' | sed 's/%//')
+if [ "$DISK_SPACE" -gt 90 ]; then
+    echo "Warning: Disk space usage is above 90%"
+fi
+
+# Check index status
+INDEX_STATUS=$(indexer --config /etc/manticoresearch/manticore.conf --status)
+if echo "$INDEX_STATUS" | grep -q "error"; then
+    echo "Error in index status!"
+    exit 1
+fi
+
+# Add to crontab (every 15 minutes)
+*/15 * * * * /usr/local/bin/check_manticore.sh >> /var/log/manticore/monitor.log 2>&1
+```
+
+4. **Backup Script**:
+```bash
+#!/bin/bash
+# /usr/local/bin/backup_manticore.sh
+
+# Create backup directory
+BACKUP_DIR="/var/backups/manticore/$(date +%Y%m%d)"
+mkdir -p "$BACKUP_DIR"
+
+# Backup configuration
+cp /etc/manticoresearch/manticore.conf "$BACKUP_DIR/"
+
+# Backup indexes
+cp -r /var/lib/manticore/* "$BACKUP_DIR/"
+
+# Compress backup
+tar -czf "$BACKUP_DIR.tar.gz" "$BACKUP_DIR"
+
+# Remove old backups (keep last 7 days)
+find /var/backups/manticore -type f -mtime +7 -delete
+
+# Add to crontab (daily at 4 AM)
+0 4 * * * /usr/local/bin/backup_manticore.sh >> /var/log/manticore/backup.log 2>&1
+```
+
+5. **Logging Configuration**:
+```plaintext
+# /etc/manticoresearch/manticore.conf
+searchd {
+    log = /var/log/manticore/searchd.log
+    query_log = /var/log/manticore/query.log
+    pid_file = /var/run/manticore/searchd.pid
+}
+```
+
+6. **Performance Monitoring**:
+```bash
+# Add to crontab (every hour)
+0 * * * * /usr/bin/mysql -h127.0.0.1 -P9306 -e "SHOW STATUS" >> /var/log/manticore/status.log
+```
+
+7. **Alert Configuration**:
+```bash
+#!/bin/bash
+# /usr/local/bin/alert_manticore.sh
+
+# Check for critical errors
+if grep -q "ERROR" /var/log/manticore/searchd.log; then
+    # Send alert (example using mail)
+    echo "Critical error in Manticore Search" | mail -s "Manticore Alert" admin@example.com
+fi
+
+# Add to crontab (every 5 minutes)
+*/5 * * * * /usr/local/bin/alert_manticore.sh
+```
+
 **Advantages**:
 - Efficient for large datasets
 - Lower memory usage
