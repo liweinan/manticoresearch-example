@@ -11,9 +11,11 @@ BLUE='\033[0;34m'
 if [ -n "$CI" ]; then
     echo "Running in CI environment"
     MYSQL_HOST="manticore"
+    DOCKER_CMD="docker-compose run --rm manticore"
 else
     echo "Running in local environment"
     MYSQL_HOST="0"
+    DOCKER_CMD="docker-compose exec manticore"
 fi
 
 # Function to validate MySQL response
@@ -66,7 +68,7 @@ run_test() {
     echo "Testing search: $description"
     
     # Execute MySQL query and capture output
-    output=$(docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SELECT id, title, content FROM documents_idx WHERE MATCH('$query')\G")
+    output=$($DOCKER_CMD mysql -h $MYSQL_HOST -P 9306 -e "SELECT id, title, content FROM documents_idx WHERE MATCH('$query')\G")
     
     # Print raw output for debugging
     echo -e "\nRaw MySQL output:"
@@ -81,7 +83,7 @@ echo "Starting Manticore direct search tests..."
 
 # Check Manticore service status
 echo -e "\n${BLUE}Checking Manticore service status...${NC}"
-docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SHOW STATUS" || {
+$DOCKER_CMD mysql -h $MYSQL_HOST -P 9306 -e "SHOW STATUS" || {
     echo -e "${RED}Failed to connect to Manticore Search${NC}"
     echo -e "${YELLOW}Checking Manticore container status...${NC}"
     docker-compose ps manticore
@@ -92,21 +94,21 @@ docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SHOW STATUS" || {
 
 # Check index status
 echo -e "\n${BLUE}Checking index status...${NC}"
-docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SHOW TABLES" || {
+$DOCKER_CMD mysql -h $MYSQL_HOST -P 9306 -e "SHOW TABLES" || {
     echo -e "${RED}Failed to list tables${NC}"
     exit 1
 }
 
 # Check index structure
 echo -e "\n${BLUE}Checking index structure...${NC}"
-docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "DESCRIBE documents_idx" || {
+$DOCKER_CMD mysql -h $MYSQL_HOST -P 9306 -e "DESCRIBE documents_idx" || {
     echo -e "${RED}Failed to describe index${NC}"
     exit 1
 }
 
 # Check current data in index
 echo -e "\n${BLUE}Checking current data in index...${NC}"
-docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SELECT COUNT(*) FROM documents_idx" || {
+$DOCKER_CMD mysql -h $MYSQL_HOST -P 9306 -e "SELECT COUNT(*) FROM documents_idx" || {
     echo -e "${RED}Failed to count documents${NC}"
     exit 1
 }
@@ -129,7 +131,7 @@ run_test "English phrase 'search functionality'" "search functionality" 1 "searc
 # Test all documents
 echo -e "\n----------------------------------------"
 echo "Showing all documents in the index:"
-output=$(docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SELECT id, title, content FROM documents_idx\G")
+output=$($DOCKER_CMD mysql -h $MYSQL_HOST -P 9306 -e "SELECT id, title, content FROM documents_idx\G")
 echo "$output"
 validate_mysql_response "$output" 5
 
