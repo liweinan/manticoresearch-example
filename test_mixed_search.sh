@@ -5,6 +5,7 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 
 # Detect if running in CI environment
 if [ -n "$CI" ]; then
@@ -77,6 +78,38 @@ run_test() {
 }
 
 echo "Starting Manticore direct search tests..."
+
+# Check Manticore service status
+echo -e "\n${BLUE}Checking Manticore service status...${NC}"
+docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SHOW STATUS" || {
+    echo -e "${RED}Failed to connect to Manticore Search${NC}"
+    echo -e "${YELLOW}Checking Manticore container status...${NC}"
+    docker-compose ps manticore
+    echo -e "${YELLOW}Manticore container logs:${NC}"
+    docker-compose logs manticore
+    exit 1
+}
+
+# Check index status
+echo -e "\n${BLUE}Checking index status...${NC}"
+docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SHOW TABLES" || {
+    echo -e "${RED}Failed to list tables${NC}"
+    exit 1
+}
+
+# Check index structure
+echo -e "\n${BLUE}Checking index structure...${NC}"
+docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "DESCRIBE documents_idx" || {
+    echo -e "${RED}Failed to describe index${NC}"
+    exit 1
+}
+
+# Check current data in index
+echo -e "\n${BLUE}Checking current data in index...${NC}"
+docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SELECT COUNT(*) FROM documents_idx" || {
+    echo -e "${RED}Failed to count documents${NC}"
+    exit 1
+}
 
 # Test Chinese character search
 run_test "Chinese word '测试' (test)" "测试" 2 "测试文档"
