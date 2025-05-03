@@ -128,10 +128,11 @@ def search():
 
     results = []
     for row in cursor:
+        content = json.loads(row['content_text'])
         results.append({
             'id': row['id'],
             'title': row['title'],
-            'content': row['content_text']
+            'content': content
         })
 
     cursor.close()
