@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    
+    - name: Download Jieba dictionary
+      run: |
+        wget https://raw.githubusercontent.com/fxsjy/jieba/master/extra_dict/dict.txt.big
+        
+    - name: Build Docker images
+      run: docker-compose build
+      
+    - name: Start services
+      run: docker-compose up -d
+      
+    - name: Wait for services to be ready
+      run: |
+        sleep 30
+        docker-compose ps
+        
+    - name: Make test scripts executable
+      run: chmod +x test_web_search.sh test_mixed_search.sh
+      
+    - name: Run web search tests
+      run: ./test_web_search.sh
+      
+    - name: Run mixed search tests
+      run: ./test_mixed_search.sh
+      
+    - name: Clean up
+      if: always()
+      run: |
+        docker-compose down -v 
