@@ -120,7 +120,7 @@ def search():
 
     # Execute search query
     cursor.execute(f"""
-        SELECT id, title, content_text
+        SELECT id, title, content_text, content
         FROM documents_idx
         WHERE MATCH('{search_query}')
         LIMIT 10
@@ -128,12 +128,21 @@ def search():
 
     results = []
     for row in cursor:
-        content = json.loads(row['content_text'])
-        results.append({
-            'id': row['id'],
-            'title': row['title'],
-            'content': content
-        })
+        print(f"Debug - Row content: {row}")  # Debug log
+        try:
+            content_data = {
+                'text': row['content_text'],
+                'tags': json.loads(row['content'])['tags'] if 'content' in row else []
+            }
+            results.append({
+                'id': row['id'],
+                'title': row['title'],
+                'content': content_data
+            })
+        except Exception as e:
+            print(f"Error processing row: {e}")  # Debug log
+            print(f"Row data: {row}")  # Debug log
+            continue
 
     cursor.close()
     conn.close()
