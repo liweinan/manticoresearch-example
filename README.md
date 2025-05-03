@@ -336,13 +336,26 @@ Delta indexing uses a "main + delta" scheme where:
 - Both indexes are searched together
 
 **Technical Implementation**:
-1. **Main Index Configuration**:
+1. **Tracking Table Setup**:
+```sql
+-- Create tracking table in PostgreSQL
+CREATE TABLE index_tracking (
+    index_name VARCHAR(50) PRIMARY KEY,
+    last_update TIMESTAMP NOT NULL
+);
+
+-- Initial entry for delta index
+INSERT INTO index_tracking (index_name, last_update)
+VALUES ('documents_delta', NOW() - INTERVAL '15 minutes');
+```
+
+2. **Main Index Configuration**:
 ```plaintext
 source documents {
     # Main index source (historical data)
     sql_query = SELECT id, title, content->>'text' as content_text, content::text as content_json, updated_at \
                 FROM documents \
-                WHERE id NOT IN (SELECT id FROM documents_delta)
+                WHERE updated_at < (SELECT last_update FROM index_tracking WHERE index_name = 'documents_delta')
     
     # Index configuration
     sql_attr_timestamp = updated_at
@@ -351,14 +364,18 @@ source documents {
 }
 ```
 
-2. **Delta Index Configuration**:
+3. **Delta Index Configuration**:
 ```plaintext
 source documents_delta {
     # Delta index source (recent changes)
     sql_query = SELECT id, title, content->>'text' as content_text, content::text as content_json, updated_at \
                 FROM documents \
-                WHERE updated_at >= (SELECT MAX(updated_at) FROM documents_delta) \
-                OR id NOT IN (SELECT id FROM documents)
+                WHERE updated_at >= (SELECT last_update FROM index_tracking WHERE index_name = 'documents_delta')
+    
+    # Update tracking after indexing
+    sql_query_post = UPDATE index_tracking \
+                     SET last_update = NOW() \
+                     WHERE index_name = 'documents_delta'
     
     # Same configuration as main index
     sql_attr_timestamp = updated_at
@@ -367,23 +384,46 @@ source documents_delta {
 }
 ```
 
+4. **Crontab Configuration**:
+```bash
+# Edit crontab
+crontab -e
+
+# Add the following entries:
+# Delta index updates (every 15 minutes)
+# Using a lock file to prevent overlapping updates
+*/15 * * * * /usr/bin/flock -n /tmp/manticore_delta.lock /usr/bin/indexer --config /etc/manticoresearch/manticore.conf delta_index --rotate
+
+# Delta to main index merge (daily at 2 AM)
+# Using a lock file to prevent conflicts with delta updates
+0 2 * * * /usr/bin/flock -n /tmp/manticore_merge.lock /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --merge main_index delta_index --rotate
+
+# Index optimization (weekly on Sunday at 3 AM)
+0 3 * * 0 /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --optimize main_index
+
+# Log rotation (daily at 1 AM)
+0 1 * * * /usr/bin/find /var/log/manticore/ -name "*.log" -mtime +7 -delete
+```
+
 This configuration:
-1. Uses document IDs to track changes instead of timestamps
-2. Ensures no documents are missed or duplicated
-3. Properly handles both updates and new documents
-4. Aligns with our merge-based update strategy
+1. Uses a tracking table to record the last update time
+2. Delta index only gets documents updated since last run
+3. Main index gets all documents before last delta update
+4. Automatically updates tracking after each delta index run
 
 **Important Notes**:
-1. The `documents_delta` table is used to track which documents are in the delta index
-2. The delta index query gets:
-   - New documents (not in main index)
-   - Updated documents (newer than last delta update)
-3. The main index query gets:
-   - All documents not in delta index
-4. This approach ensures:
-   - No document duplication
-   - No missed updates
-   - Clean merge operations
+1. The tracking mechanism ensures:
+   - No documents are missed
+   - No duplicate processing
+   - Clean 15-minute windows
+2. Lock files prevent:
+   - Overlapping delta updates
+   - Merge operations during updates
+3. The schedule provides:
+   - Near real-time updates (15-minute intervals)
+   - Daily consolidation through merging
+   - Weekly optimization
+   - Regular log maintenance
 
 3. **Index Merging**:
 - Delta index is periodically merged into main index
@@ -442,15 +482,15 @@ indexer --config /etc/manticoresearch/manticore.conf delta_index
 crontab -e
 
 # Add the following entries:
-# Delta index updates (every 5 minutes)
-*/5 * * * * /usr/bin/indexer --config /etc/manticoresearch/manticore.conf delta_index --rotate
+# Delta index updates (every 15 minutes)
+# Using a longer interval to avoid conflicts with merge
+*/15 * * * * /usr/bin/indexer --config /etc/manticoresearch/manticore.conf delta_index --rotate
 
 # Delta to main index merge (daily at 2 AM)
-# This is the only time main index is updated
-0 2 * * * /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --merge main_index delta_index --rotate
+# Using a lock file to prevent conflicts with delta updates
+0 2 * * * /usr/bin/flock -n /tmp/manticore_merge.lock /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --merge main_index delta_index --rotate
 
 # Index optimization (weekly on Sunday at 3 AM)
-# Only optimize main index after merge
 0 3 * * 0 /usr/bin/indexer --config /etc/manticoresearch/manticore.conf --optimize main_index
 
 # Log rotation (daily at 1 AM)
@@ -458,17 +498,29 @@ crontab -e
 ```
 
 The schedule is designed to:
-1. Keep delta index updated frequently (every 5 minutes) for recent changes
-2. Merge delta into main index daily (2 AM) - this is the only time main index is updated
-3. Optimize main index weekly (Sunday 3 AM) after merge
+1. Update delta index every 15 minutes (less frequent to avoid conflicts)
+2. Merge delta into main index daily at 2 AM (with lock file to prevent conflicts)
+3. Optimize main index weekly (Sunday 3 AM)
 4. Rotate logs daily (1 AM)
 
-This sequence ensures:
-- Recent changes are quickly available in delta index
-- Main index is only updated through merging with delta
-- No redundant updates to main index
-- Optimization is done on a clean, merged index
-- No overlap between operations
+This configuration ensures:
+- No conflicts between delta updates and merge operations
+- Simple and reliable time-based partitioning
+- Efficient query performance
+- Clean merge operations
+
+**Important Notes**:
+1. The 24-hour window ensures:
+   - No documents are missed
+   - No duplicate documents
+   - Clean partitioning between main and delta
+2. The lock file prevents:
+   - Merge operations during delta updates
+   - Multiple merge operations running simultaneously
+3. The 15-minute interval for delta updates:
+   - Reduces system load
+   - Minimizes chance of conflicts
+   - Still provides near real-time updates
 
 3. **Monitoring Script**:
 ```bash
