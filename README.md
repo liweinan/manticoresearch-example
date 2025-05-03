@@ -81,92 +81,85 @@ Manticore Search is a powerful full-text search engine that provides multiple in
 
 ## Step-by-Step Setup
 
-1. **Clone and Prepare the Repository**:
-```bash
-git clone <repository-url>
-cd manticoresearch-example
-```
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   cd manticoresearch-example
+   ```
 
-2. **Download Required Dependencies**:
-```bash
-# Download Jieba dictionary
-./download_dict.sh
+2. Download the Jieba dictionary:
+   ```bash
+   wget https://raw.githubusercontent.com/fxsjy/jieba/master/extra_dict/dict.txt.big
+   ```
 
-# If behind a firewall, use proxy:
-export http_proxy=http://localhost:7890 https_proxy=http://localhost:7890
-./download_dict.sh
-```
+3. Build and start services:
+   ```bash
+   docker-compose build
+   docker-compose up -d
+   ```
 
-3. **Build and Start Services**:
-```bash
-# Clean up any existing containers and volumes
-docker-compose down -v
+4. Monitor service startup:
+   ```bash
+   docker-compose logs
+   ```
 
-# Build and start services with proxy settings
-export http_proxy=http://localhost:7890 https_proxy=http://localhost:7890
-docker-compose build
-docker-compose up -d
-```
+5. Verify the setup:
+   ```bash
+   docker-compose ps
+   ```
 
-4. **Monitor Service Startup**:
-```bash
-# Check service status
-docker-compose ps
+6. Run tests:
+   ```bash
+   chmod +x test_web_search.sh test_mixed_search.sh
+   ./test_web_search.sh
+   ./test_mixed_search.sh
+   ```
 
-# Monitor logs
-docker-compose logs
-```
+## Using Pre-built Images on Another Machine
 
-The services will start in this order:
-1. PostgreSQL starts and becomes healthy
-2. Flask app initializes the database with sample data
-3. Manticore waits for the database to be ready and creates the search index
+To use the pre-built images from Docker Hub on another machine:
 
-5. **Verify Setup**:
-```bash
-# Check if all services are running
-docker-compose ps
+1. Create a new directory and copy the necessary files:
+   ```bash
+   mkdir manticore-example
+   cd manticore-example
+   # Copy these files from the original repository:
+   # - docker-compose.prod.yml
+   # - manticore.conf
+   # - wordforms.txt
+   # - test_web_search.sh
+   # - test_mixed_search.sh
+   ```
 
-# Expected output:
-# manticoresearch-example-postgres-1 (healthy)
-# manticoresearch-example-manticore-1 (running)
-# manticoresearch-example-app-1 (running)
-```
+2. Make the test scripts executable:
+   ```bash
+   chmod +x test_web_search.sh test_mixed_search.sh
+   ```
 
-6. **Run Tests**:
-```bash
-# Make test scripts executable
-chmod +x test_web_search.sh test_mixed_search.sh
+3. Start the services using the production compose file:
+   ```bash
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
 
-# Run web search tests
-./test_web_search.sh
+4. Monitor the startup:
+   ```bash
+   docker-compose -f docker-compose.prod.yml logs
+   ```
 
-# Run direct Manticore tests
-./test_mixed_search.sh
-```
+5. Run the tests:
+   ```bash
+   ./test_web_search.sh
+   ./test_mixed_search.sh
+   ```
 
-The test scripts will verify:
-- Chinese text search
-- English text search
-- Mixed language search
-- Web API functionality
-- Direct Manticore search functionality
-- Document indexing and retrieval
+The `docker-compose.prod.yml` file uses pre-built images from Docker Hub:
+- `weli/manticoresearch-example:manticore` for the Manticore Search service
+- `weli/manticoresearch-example:app` for the Flask application
 
-7. **Troubleshooting**:
-If you encounter any issues:
-```bash
-# Check service logs
-docker-compose logs app        # Flask app logs
-docker-compose logs manticore  # Manticore Search logs
-docker-compose logs postgres   # PostgreSQL logs
-
-# Rebuild Manticore index if needed
-docker-compose exec manticore indexer --all --rotate
-
-# Restart services if needed
-docker-compose restart
-```
+This approach allows you to:
+- Deploy the application quickly without building images locally
+- Maintain consistent versions across different machines
+- Keep the original `docker-compose.yml` for development purposes
 
 ## Project Structure
 
