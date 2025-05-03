@@ -6,15 +6,31 @@ This project demonstrates a multilingual search application using Manticore Sear
 
 ```mermaid
 graph TD
-    Client[Client] --> |HTTP Request| Flask[Flask App]
-    Flask --> |Query| Manticore[Manticore Search]
-    Flask --> |Data Storage| PostgreSQL[PostgreSQL]
-    Flask --> |Chinese Tokenization| Jieba[Jieba]
-    PostgreSQL --> |Index Data| Manticore
-    subgraph Search Flow
-        Jieba --> |Tokenized Text| Manticore
-        Manticore --> |Search Results| Flask
+    Client((User)) --> |HTTP Request| Flask
+
+    subgraph Containers
+        direction LR
+        subgraph Flask Container
+            Flask[Flask App<br>Port: 6000]
+            Jieba[Jieba]
+            Flask --> |Tokenization| Jieba
+        end
+
+        subgraph Manticore Container
+            Manticore[Manticore Search<br>Ports: 9306/9308]
+        end
+
+        subgraph PostgreSQL Container
+            PostgreSQL[PostgreSQL<br>Port: 5432]
+        end
     end
+
+    %% Data Flow
+    Flask --> |Query| Manticore
+    Flask --> |Data Storage| PostgreSQL
+    Jieba --> |Tokenized Text| Manticore
+    PostgreSQL --> |Index Data| Manticore
+    Manticore --> |Search Results| Flask
 ```
 
 ## Features
