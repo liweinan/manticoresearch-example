@@ -41,7 +41,17 @@ git clone <repository-url>
 cd manticoresearch-example
 ```
 
-2. Build and start the services:
+2. Make scripts executable:
+```bash
+chmod +x *.sh
+```
+
+3. Download the Jieba dictionary:
+```bash
+./download_dict.sh
+```
+
+4. Build and start the services:
 ```bash
 docker-compose up -d
 ```
@@ -58,8 +68,9 @@ manticoresearch-example/
 ├── app.py                 # Flask application
 ├── docker-compose.yml     # Docker services configuration
 ├── manticore.conf        # Manticore Search configuration
+├── pg_hba.conf           # PostgreSQL authentication configuration
 ├── data/                 # Data directory
-│   └── dict.txt.big     # Jieba dictionary file
+│   └── dict.txt.big     # Jieba dictionary file (downloaded)
 ├── test_web_search.sh    # Web API test script
 └── test_mixed_search.sh  # Direct Manticore test script
 ```
@@ -151,17 +162,20 @@ This script tests:
 - User: postgres
 - Password: postgres
 - Port: 5432
+- Authentication: Configured in pg_hba.conf
 
 ### Manticore Search
 
 - Port: 9306 (MySQL protocol)
 - Port: 9308 (HTTP protocol)
 - Configuration file: manticore.conf
+- Chinese character support: Configured with ngram tokenization
 
 ### Flask Application
 
 - Port: 6000 (mapped from container port 5000)
 - Debug mode: Enabled
+- Jieba dictionary: Uses dict.txt.big for better Chinese word segmentation
 
 ## Troubleshooting
 
@@ -183,6 +197,14 @@ docker-compose logs manticore  # Manticore Search logs
 docker-compose logs postgres   # PostgreSQL logs
 ```
 
+4. If the Jieba dictionary download fails:
+```bash
+# Try with proxy if behind a firewall
+export http_proxy=http://your-proxy:port
+export https_proxy=http://your-proxy:port
+./download_dict.sh
+```
+
 ## Development
 
 ### Adding New Documents
@@ -196,19 +218,20 @@ docker-compose restart
 ### Modifying Search Configuration
 
 1. Edit `manticore.conf`
-2. Restart Manticore:
+2. Restart Manticore and rebuild the index:
 ```bash
 docker-compose restart manticore
-```
-3. Rebuild the index:
-```bash
 docker-compose exec manticore indexer --all --rotate
 ```
 
 ## License
 
-[Your License Here]
+This project is open source and available under the MIT License.
 
 ## Contributing
 
-[Your Contributing Guidelines Here] 
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a new Pull Request 
