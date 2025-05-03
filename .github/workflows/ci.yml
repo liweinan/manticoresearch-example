@@ -13,25 +13,40 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up Docker
+    - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v2
-      with:
-        install-compose: true
-        
+      
+    - name: Set up Docker Compose
+      uses: docker/setup-compose-action@v2
+      
     - name: Download Jieba dictionary
       run: |
         wget https://raw.githubusercontent.com/fxsjy/jieba/master/extra_dict/dict.txt.big
         
     - name: Build Docker images
-      run: docker compose build
+      run: |
+        docker compose build || {
+          echo "Build failed, showing logs:"
+          docker compose logs
+          exit 1
+        }
       
     - name: Start services
-      run: docker compose up -d
+      run: |
+        docker compose up -d || {
+          echo "Start services failed, showing logs:"
+          docker compose logs
+          exit 1
+        }
       
     - name: Wait for services to be ready
       run: |
         sleep 30
-        docker compose ps
+        docker compose ps || {
+          echo "Services not ready, showing logs:"
+          docker compose logs
+          exit 1
+        }
         
     - name: Make test scripts executable
       run: chmod +x test_web_search.sh test_mixed_search.sh
