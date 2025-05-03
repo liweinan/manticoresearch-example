@@ -48,11 +48,11 @@ DB_PARAMS = {
 MANTICORE_PARAMS = {
     'host': os.getenv('MANTICORE_HOST', 'manticore'),    # Manticore Search host
     'port': int(os.getenv('MANTICORE_PORT', '9306')),    # MySQL protocol port
-    'user': os.getenv('MANTICORE_USER', ''),             # No authentication required
-    'password': os.getenv('MANTICORE_PASSWORD', ''),      # No password required
-    'database': os.getenv('MANTICORE_DATABASE', ''),     # No specific database required
-    'use_pure': True,                                    # Use pure Python implementation
-    'raise_on_warnings': True                           # Raise exceptions on warnings
+    'user': '',             # No authentication required
+    'password': '',         # No password required
+    'raise_on_warnings': True,                           # Raise exceptions on warnings
+    'charset': 'utf8mb4',                               # Use UTF-8 encoding
+    'use_unicode': True                                 # Enable Unicode support
 }
 
 # Configure logging with detailed format
@@ -186,23 +186,20 @@ def search():
     3. Uses Jieba for Chinese word segmentation
     4. Searches using Manticore Search
     5. Returns results in JSON format
-    
-    Logging is added at key points to track:
-    - Query reception
-    - Connection status
-    - Tokenization results
-    - SQL query execution
-    - Result count
-    - Any errors that occur
     """
-    # Get query from either GET parameters or POST JSON
+    # Get query from either GET parameters or POST JSON and ensure proper UTF-8 encoding
     if request.method == 'GET':
-        query = request.args.get('q', '')
+        query = request.args.get('q', '', type=str)
+        # Handle URL-encoded UTF-8
+        query = query.encode('latin1').decode('utf-8')
     else:
         query = request.json.get('q', '')
     
     # Log the received query
     logger.debug(f"Received search query: {query}")
+    logger.debug(f"Query type: {type(query)}")
+    logger.debug(f"Query length: {len(query)}")
+    logger.debug(f"Query bytes: {query.encode('utf-8')}")
     
     try:
         # Log connection parameters (without password)
@@ -214,10 +211,25 @@ def search():
         
         cursor = connection.cursor(dictionary=True)
         
-        # Tokenize the query using Jieba
-        tokens = jieba.cut(query)
-        search_terms = ' '.join(tokens)
-        logger.debug(f"Tokenized query: {search_terms}")
+        # Tokenize the query using Jieba for Chinese text
+        tokens = list(jieba.cut(query))
+        logger.debug(f"Jieba tokens: {tokens}")
+        
+        # Quote each token and ensure proper UTF-8 encoding
+        search_terms = []
+        for token in tokens:
+            # Skip empty tokens
+            if not token.strip():
+                continue
+            # Log each token's encoding
+            logger.debug(f"Processing token: {token}")
+            logger.debug(f"Token bytes: {token.encode('utf-8')}")
+            # Keep the token as is, since it's already properly encoded
+            search_terms.append(f'"{token}"')
+        
+        search_query = ' '.join(search_terms)
+        logger.debug(f"Tokenized and quoted query: {search_query}")
+        logger.debug(f"Final query bytes: {search_query.encode('utf-8')}")
         
         # Build and execute the search query
         sql = """
@@ -228,11 +240,13 @@ def search():
         LIMIT 10
         """
         
-        logger.debug(f"Executing SQL query: {sql % search_terms}")
-        cursor.execute(sql, (search_terms,))
+        logger.debug(f"Executing SQL query: {sql % search_query}")
+        cursor.execute(sql, (search_query,))
         
         results = cursor.fetchall()
         logger.debug(f"Found {len(results)} results")
+        if results:
+            logger.debug(f"First result content: {results[0]['content_text']}")
         
         cursor.close()
         connection.close()

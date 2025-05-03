@@ -90,7 +90,12 @@ cd manticoresearch-example
 ```
 This will download the Chinese dictionary file to `data/dict.txt.big`.
 
-3. Build and start the services:
+3. Clean up any existing containers and volumes:
+```bash
+docker-compose down -v
+```
+
+4. Build and start the services:
 ```bash
 docker-compose up -d
 ```
@@ -100,7 +105,12 @@ This will start:
 - Manticore Search engine (ports 9306/9308)
 - Flask web application (port 8080)
 
-4. Verify services are running:
+5. Create the Manticore search index:
+```bash
+docker-compose exec manticore indexer --all
+```
+
+6. Verify services are running:
 ```bash
 docker-compose ps
 ```
@@ -214,103 +224,31 @@ curl -X POST "http://localhost:8080/search" \
 
 ## Testing
 
-### Running Web API Tests
+The project includes two test scripts to verify the functionality:
 
-The project includes a test script that verifies the search functionality:
+1. Web Search Tests (`test_web_search.sh`):
+   - Tests the Flask API endpoints
+   - Verifies Chinese and English text search
+   - Tests mixed language search
+   - Uses curl to make HTTP requests
 
+2. Direct Manticore Tests (`test_mixed_search.sh`):
+   - Tests Manticore Search directly via MySQL protocol
+   - Verifies index structure and content
+   - Tests search functionality at the engine level
+   - Uses MySQL client to connect to Manticore
+
+To run the tests:
 ```bash
+# Make the test scripts executable
+chmod +x test_web_search.sh test_mixed_search.sh
+
+# Run web search tests
 ./test_web_search.sh
-```
 
-This script tests:
-- Chinese text search (测试, 中文)
-- English text search (test, english)
-- Mixed language search (测试 test)
-- Phrase search (search functionality)
-
-### Sample Test Output
-
-```json
-{
-  "id": 1,
-  "title": "文档1",
-  "content": {
-    "text": "这是一个测试文档，包含一些中文内容。This is a test document with some Chinese content.",
-    "tags": ["测试", "中文", "test"]
-  }
-}
-```
-
-### Running Direct Manticore Tests
-
-You can also test the Manticore search directly:
-
-```bash
+# Run direct Manticore tests
 ./test_mixed_search.sh
 ```
-
-This script tests:
-- Chinese character search
-- English word search
-- Phrase search
-- Shows all documents in the index
-
-### Verifying Index Status
-
-To check the Manticore index status:
-
-```bash
-docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW TABLES;"
-```
-
-You should see:
-```
-+---------------+-------+
-| Table         | Type  |
-+---------------+-------+
-| documents_idx | local |
-+---------------+-------+
-```
-
-### Viewing Search Logs
-
-Manticore Search provides several ways to view search logs through the SQL interface:
-
-1. **Check Log Settings**:
-```bash
-docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW VARIABLES LIKE 'log%';"
-```
-
-2. **View Recent Queries**:
-```bash
-docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW QUERIES;"
-```
-
-3. **View Query Log**:
-```bash
-docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW QUERY LOG;"
-```
-
-4. **View Recent Errors**:
-```bash
-docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW STATUS LIKE 'error%';"
-```
-
-5. **View Performance Metrics**:
-```bash
-docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW STATUS LIKE 'perf%';"
-```
-
-6. **View Thread Status**:
-```bash
-docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW THREADS;"
-```
-
-These commands help you:
-- Monitor search performance
-- Debug query issues
-- Track system status
-- Identify bottlenecks
 
 ## Configuration
 

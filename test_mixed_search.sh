@@ -1,34 +1,95 @@
 #!/bin/bash
 
-# This script tests the Manticore Search functionality directly
-# It bypasses the web API and connects to Manticore Search using the MySQL protocol
-# The tests verify that the search engine correctly indexes and searches:
-# - Chinese text
-# - English text
-# - Mixed language content
+# Colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
+YELLOW='\033[1;33m'
+
+# Function to validate MySQL response
+validate_mysql_response() {
+    local output="$1"
+    local expected_count="$2"
+    local expected_content="$3"
+    
+    # Check if there's an error in the response
+    if echo "$output" | grep -q "ERROR"; then
+        echo -e "${RED}❌ MySQL Error: $(echo "$output" | grep "ERROR")${NC}"
+        return 1
+    fi
+    
+    # Count the number of rows (each row starts with *************************** row)
+    local row_count=$(echo "$output" | grep -c "row \*")
+    
+    # If expected_count is provided, verify the count
+    if [ ! -z "$expected_count" ]; then
+        if [ "$row_count" -ne "$expected_count" ]; then
+            echo -e "${RED}❌ Expected $expected_count results, but got $row_count${NC}"
+            return 1
+        fi
+    fi
+    
+    # If expected_content is provided, check if it appears in results
+    if [ ! -z "$expected_content" ]; then
+        if ! echo "$output" | grep -q "content_text: .*$expected_content"; then
+            echo -e "${RED}❌ Expected content not found in results: $expected_content${NC}"
+            return 1
+        fi
+    fi
+    
+    echo -e "${GREEN}✓ Valid response with $row_count results${NC}"
+    
+    # Show document details
+    echo -e "${YELLOW}Documents found:${NC}"
+    echo "$output" | awk '/\*\*\*/ {p=1;next} p&&/^$/{p=0} p' | sed 's/^/  /'
+    
+    return 0
+}
+
+run_test() {
+    local description="$1"
+    local query="$2"
+    local expected_count="$3"
+    local expected_content="$4"
+    
+    echo -e "\n----------------------------------------"
+    echo "Testing search: $description"
+    
+    # Execute MySQL query and capture output
+    output=$(docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text FROM documents_idx WHERE MATCH('$query')\G")
+    
+    # Print raw output for debugging
+    echo -e "\nRaw MySQL output:"
+    echo "$output"
+    echo
+    
+    # Validate the response
+    validate_mysql_response "$output" "$expected_count" "$expected_content"
+}
+
+echo "Starting Manticore direct search tests..."
 
 # Test Chinese character search
-# This verifies that Manticore Search can handle and search Chinese text
-echo "Testing search with Chinese characters '测试' (test):"
-docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text, content_json FROM documents_idx WHERE MATCH('测试')"
+run_test "Chinese word '测试' (test)" "测试" 1 "测试文档"
 
 # Test another Chinese character search
-echo -e "\nTesting search with Chinese characters '中文' (Chinese):"
-docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text, content_json FROM documents_idx WHERE MATCH('中文')"
+run_test "Chinese word '中文' (Chinese)" "中文" 3 "中文内容"
 
 # Test English word search
-echo -e "\nTesting search with English word 'test':"
-docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text, content_json FROM documents_idx WHERE MATCH('test')"
+run_test "English word 'test'" "test" 2 "test document"
 
 # Test another English word search
-echo -e "\nTesting search with English word 'english':"
-docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text, content_json FROM documents_idx WHERE MATCH('english')"
+run_test "English word 'english'" "english" 2 "English document"
 
 # Test English phrase search
-echo -e "\nTesting search with English phrase 'search functionality':"
-docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text, content_json FROM documents_idx WHERE MATCH('search functionality')"
+run_test "English phrase 'search functionality'" "search functionality" 1 "search functionality"
 
-# Display all documents in the index
-# This helps verify the data structure and content
-echo -e "\nShowing all documents in the index:"
-docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text, content_json FROM documents_idx" 
+# Test all documents
+echo -e "\n----------------------------------------"
+echo "Showing all documents in the index:"
+output=$(docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text FROM documents_idx\G")
+echo "$output"
+validate_mysql_response "$output" 5
+
+echo -e "\n----------------------------------------"
+echo "Manticore direct search tests completed." 
