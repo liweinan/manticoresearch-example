@@ -1,0 +1,14 @@
+# Chinese word forms for Manticore Search
+# Format: word1 > word2
+# This file helps Manticore understand word variations
+
+测试 > 測試
+中文 > 汉语
+文档 > 文件
+搜索 > 查找
+功能 > 作用
+英文 > 英语
+示例 > 例子
+应用 > 程序
+数据 > 资料
+索引 > 目录 
