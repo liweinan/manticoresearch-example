@@ -264,6 +264,76 @@ This script tests the search functionality at the Manticore level, showing both 
 - Debug mode: Enabled
 - Jieba dictionary: Uses dict.txt.big for better Chinese word segmentation
 
+## Incremental Indexing
+
+Manticore Search supports several approaches for incremental indexing, allowing you to update search indexes without full rebuilds:
+
+### 1. Delta Indexing
+Delta indexing uses a "main + delta" scheme where:
+- Main index contains historical data
+- Delta index contains recent changes
+- Both indexes are searched together
+
+Example configuration:
+```plaintext
+source documents {
+    # Main index source (older data)
+    sql_query = SELECT ... FROM documents WHERE updated_at < NOW() - INTERVAL '1 day'
+}
+
+source documents_delta {
+    # Delta index source (recent data)
+    sql_query = SELECT ... FROM documents WHERE updated_at >= NOW() - INTERVAL '1 day'
+}
+```
+
+### 2. Real-Time (RT) Indexes
+RT indexes allow immediate updates without rebuilding:
+- Documents can be inserted, updated, or deleted in real-time
+- No need for periodic index rebuilds
+- Higher memory usage but better for frequently changing data
+
+Example usage:
+```sql
+-- Create RT index
+CREATE TABLE rt_documents (
+    id bigint,
+    title string,
+    content_text string,
+    content_json string,
+    updated_at timestamp
+);
+
+-- Insert/update documents
+REPLACE INTO rt_documents VALUES (1, 'Title', 'Content', '{"json": "data"}', NOW());
+```
+
+### 3. Percona Indexing
+Percona indexing provides near real-time updates by:
+- Using PostgreSQL's logical decoding
+- Automatically tracking database changes
+- More complex setup but better for high-availability systems
+
+### Choosing the Right Approach
+
+1. **Delta Indexing** is best for:
+   - Large datasets
+   - Batch updates
+   - Lower memory usage
+   - Periodic updates (e.g., hourly/daily)
+
+2. **Real-Time Indexes** are best for:
+   - Frequently changing data
+   - Immediate updates
+   - Smaller datasets
+   - Higher memory availability
+
+3. **Percona Indexing** is best for:
+   - High-availability systems
+   - Near real-time requirements
+   - Complex database setups
+   - When automatic change tracking is needed
+
 ## Troubleshooting
 
 1. If services don't start properly:
