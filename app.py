@@ -68,6 +68,9 @@ def init_db():
         )
     """)
 
+    # Clear existing data
+    cur.execute("TRUNCATE TABLE documents RESTART IDENTITY CASCADE")
+
     # Insert sample data with mixed Chinese and English text
     sample_data = [
         ("文档1", {"text": "这是一个测试文档，包含一些中文内容。This is a test document with some Chinese content.", "tags": ["测试", "中文", "test"]}),
@@ -86,6 +89,7 @@ def init_db():
     conn.commit()
     cur.close()
     conn.close()
+    print("Database initialized with sample data")
 
 app = Flask(__name__)
 
@@ -100,6 +104,8 @@ def search():
         query = data.get('query', '')
     else:
         query = request.args.get('q', '')
+        # Decode URL-encoded query
+        query = query.encode('latin1').decode('utf-8')
 
     if not query:
         return jsonify([])
