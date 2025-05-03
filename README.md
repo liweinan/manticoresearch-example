@@ -392,3 +392,154 @@ This project is open source and available under the MIT License.
 3. Commit your changes
 4. Push to the branch
 5. Create a new Pull Request 
+
+## Appendix: Percona Indexing Deep Dive
+
+Percona Indexing in Manticore Search is a powerful method that uses PostgreSQL's logical decoding feature to track and replicate database changes in real-time. This section provides a detailed technical explanation for those interested in implementing this advanced feature.
+
+### How Percona Indexing Works
+
+1. **Core Mechanism**:
+   - Uses PostgreSQL's logical decoding (introduced in PostgreSQL 9.4)
+   - Tracks changes at the transaction level
+   - Automatically captures INSERT, UPDATE, and DELETE operations
+   - Streams changes to Manticore Search in near real-time
+
+2. **Technical Components**:
+   - PostgreSQL's logical decoding slot
+   - Manticore's Percona source type
+   - Change Data Capture (CDC) mechanism
+   - Write-Ahead Log (WAL) processing
+
+### Setup Requirements
+
+1. **PostgreSQL Configuration**:
+   ```sql
+   -- Required PostgreSQL settings
+   wal_level = logical
+   max_replication_slots = 1  # or more if needed
+   ```
+
+2. **Database Permissions**:
+   - Replication role
+   - Logical decoding permissions
+   - Appropriate table access rights
+
+### Configuration Example
+
+```plaintext
+source percona_source {
+    type = percona
+    sql_host = postgres
+    sql_user = postgres
+    sql_pass = postgres
+    sql_db = search_db
+    sql_port = 5432
+    
+    # PostgreSQL replication settings
+    replication_slot = manticore_slot
+    wal2json = 1
+    
+    # Table to track
+    table = documents
+    
+    # Columns to index
+    sql_query = SELECT id, title, content->>'text' as content_text, content::text as content_json
+    sql_attr_string = title
+    sql_field_string = content_text
+    sql_attr_string = content_json
+}
+```
+
+### Advantages and Limitations
+
+1. **Advantages**:
+   - Near real-time updates (sub-second latency)
+   - No polling or manual synchronization needed
+   - Automatic change tracking
+   - Low database overhead
+   - Reliable change delivery
+
+2. **Limitations**:
+   - Requires PostgreSQL 9.4 or later
+   - Complex initial setup
+   - Requires careful monitoring
+   - Additional database configuration
+
+### Monitoring and Maintenance
+
+1. **Key Metrics to Monitor**:
+   - Replication slot size
+   - Replication lag
+   - WAL growth
+   - Change processing rate
+
+2. **Maintenance Tasks**:
+   - Regular slot cleanup
+   - WAL management
+   - Performance monitoring
+   - Error log review
+
+### Troubleshooting Guide
+
+1. **Common Issues**:
+   - Replication slot overflow
+   - Network connectivity problems
+   - Permission issues
+   - WAL configuration errors
+
+2. **Diagnostic Commands**:
+   ```sql
+   -- Check replication slot status
+   SELECT * FROM pg_replication_slots;
+   
+   -- Monitor replication lag
+   SELECT * FROM pg_stat_replication;
+   
+   -- Check WAL configuration
+   SHOW wal_level;
+   ```
+
+### Comparison with Other Methods
+
+| Feature | Delta Indexing | Real-Time Indexes | Percona Indexing |
+|---------|---------------|------------------|------------------|
+| Update Frequency | Periodic | Immediate | Near real-time |
+| Setup Complexity | Simple | Moderate | Complex |
+| Database Load | High during rebuild | Low | Very Low |
+| Memory Usage | Low | High | Moderate |
+| Reliability | Good | Good | Excellent |
+| Maintenance | Manual | Application | Automatic |
+
+### Best Practices
+
+1. **Configuration**:
+   - Use appropriate WAL settings
+   - Configure sufficient replication slots
+   - Set up proper monitoring
+   - Implement error handling
+
+2. **Performance**:
+   - Monitor replication lag
+   - Optimize WAL settings
+   - Regular maintenance
+   - Proper indexing strategy
+
+3. **Security**:
+   - Use secure connections
+   - Implement proper access controls
+   - Regular security audits
+   - Monitor for unauthorized access
+
+### Additional Resources
+
+1. **Documentation**:
+   - [PostgreSQL Logical Decoding](https://www.postgresql.org/docs/current/logicaldecoding.html)
+   - [Manticore Search Percona Source](https://manual.manticoresearch.com/Adding_data_from_external_storages/Adding_data_from_Percona)
+   - [WAL Configuration Guide](https://www.postgresql.org/docs/current/runtime-config-wal.html)
+
+2. **Tools**:
+   - pg_stat_replication
+   - pg_replication_slots
+   - WAL monitoring tools
+   - Performance monitoring dashboards 
