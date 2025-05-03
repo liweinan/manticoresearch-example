@@ -543,3 +543,202 @@ source percona_source {
    - pg_replication_slots
    - WAL monitoring tools
    - Performance monitoring dashboards 
+
+## Comparison: MySQL Binary Log vs PostgreSQL Percona Indexing
+
+This section provides a detailed comparison between MySQL's Binary Log Replication and PostgreSQL's Percona Indexing when used with Manticore Search.
+
+### 1. Architecture Comparison
+
+| Aspect | MySQL Binary Log | PostgreSQL Percona |
+|--------|-----------------|-------------------|
+| Change Tracking | Binary Log (binlog) | Write-Ahead Log (WAL) |
+| Change Format | ROW/STATEMENT/MIXED | Logical Decoding |
+| Transaction Support | Yes (GTID) | Yes (XID) |
+| Change Filtering | Basic (database/table) | Advanced (column/row) |
+| Setup Complexity | Moderate | Complex |
+| Performance Impact | Low | Very Low |
+| Version Support | MySQL 5.6+ | PostgreSQL 9.4+ |
+
+### 2. Configuration Examples
+
+**MySQL Binary Log Setup**:
+```sql
+-- MySQL Configuration
+[mysqld]
+server-id = 1
+log-bin = mysql-bin
+binlog_format = ROW
+binlog_row_image = FULL
+
+-- Manticore Source Configuration
+source mysql_source {
+    type = mysql
+    sql_host = mysql
+    sql_user = repl
+    sql_pass = password
+    sql_db = search_db
+    sql_port = 3306
+    
+    # Binary log settings
+    binlog_path = /var/lib/mysql/mysql-bin
+    binlog_name = mysql-bin
+    binlog_position = 4
+}
+```
+
+**PostgreSQL Percona Setup**:
+```plaintext
+source percona_source {
+    type = percona
+    sql_host = postgres
+    sql_user = postgres
+    sql_pass = postgres
+    sql_db = search_db
+    sql_port = 5432
+    
+    replication_slot = manticore_slot
+    wal2json = 1
+}
+```
+
+### 3. Performance Characteristics
+
+| Metric | MySQL Binary Log | PostgreSQL Percona |
+|--------|-----------------|-------------------|
+| Latency | 100-500ms | 10-100ms |
+| CPU Usage | Moderate | Low |
+| Memory Usage | Moderate | Low |
+| Network Usage | Higher | Lower |
+| Scalability | Good | Excellent |
+| Recovery Time | Moderate | Fast |
+
+### 4. Feature Comparison
+
+1. **Change Tracking**:
+   - **MySQL**: 
+     - Tracks all changes in binary log
+     - Limited filtering options
+     - Row-based changes
+   - **PostgreSQL**:
+     - Logical decoding of WAL
+     - Advanced filtering
+     - Column-level changes
+
+2. **Data Consistency**:
+   - **MySQL**:
+     - Eventual consistency
+     - GTID for transaction tracking
+     - Possible gaps in replication
+   - **PostgreSQL**:
+     - Strong consistency
+     - Transaction-level tracking
+     - No gaps in replication
+
+3. **Monitoring**:
+   - **MySQL**:
+     ```sql
+     SHOW SLAVE STATUS\G
+     SHOW BINARY LOGS;
+     SHOW BINLOG EVENTS;
+     ```
+   - **PostgreSQL**:
+     ```sql
+     SELECT * FROM pg_replication_slots;
+     SELECT * FROM pg_stat_replication;
+     SHOW wal_level;
+     ```
+
+### 5. Use Case Suitability
+
+1. **MySQL Binary Log is Better For**:
+   - Simple replication needs
+   - Traditional master-slave setups
+   - When using MySQL as primary database
+   - When simplicity is preferred over features
+   - When network bandwidth is not a concern
+
+2. **PostgreSQL Percona is Better For**:
+   - Complex data synchronization
+   - High-performance requirements
+   - When using PostgreSQL as primary database
+   - When advanced filtering is needed
+   - When network efficiency is important
+
+### 6. Implementation Considerations
+
+1. **MySQL Binary Log**:
+   - Easier to set up
+   - More common in production
+   - Better documentation
+   - More third-party tools
+   - Higher resource usage
+
+2. **PostgreSQL Percona**:
+   - More complex setup
+   - Better performance
+   - More flexible
+   - Lower resource usage
+   - Advanced features
+
+### 7. Best Practices for Each
+
+**MySQL Binary Log**:
+- Use ROW-based replication
+- Monitor replication lag
+- Regular binary log backups
+- Proper error handling
+- Network optimization
+
+**PostgreSQL Percona**:
+- Proper WAL configuration
+- Monitor replication slots
+- Regular maintenance
+- Error handling
+- Performance tuning
+
+### 8. Troubleshooting
+
+**MySQL Common Issues**:
+- Replication lag
+- Binary log size
+- Network problems
+- Slave errors
+- GTID issues
+
+**PostgreSQL Common Issues**:
+- Replication slot overflow
+- WAL configuration
+- Permission problems
+- Network issues
+- Logical decoding errors
+
+### 9. Migration Considerations
+
+1. **MySQL to PostgreSQL**:
+   - Different change tracking mechanisms
+   - Different transaction models
+   - Different monitoring tools
+   - Different performance characteristics
+
+2. **PostgreSQL to MySQL**:
+   - Loss of advanced features
+   - Different monitoring approach
+   - Different performance patterns
+   - Different maintenance requirements
+
+### 10. Future Trends
+
+1. **MySQL**:
+   - Improved binary log compression
+   - Better filtering options
+   - Enhanced monitoring
+   - Performance optimizations
+
+2. **PostgreSQL**:
+   - Enhanced logical decoding
+   - Better performance
+   - More monitoring tools
+   - Advanced features
+
+This comparison should help you choose the right approach based on your specific needs and database environment. 
