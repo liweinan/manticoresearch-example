@@ -41,17 +41,12 @@ git clone <repository-url>
 cd manticoresearch-example
 ```
 
-2. Make scripts executable:
-```bash
-chmod +x *.sh
-```
-
-3. Download the Jieba dictionary:
+2. Download the Jieba dictionary:
 ```bash
 ./download_dict.sh
 ```
 
-4. Build and start the services:
+3. Build and start the services:
 ```bash
 docker-compose up -d
 ```
