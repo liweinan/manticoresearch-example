@@ -89,7 +89,8 @@ Manticore Search is a powerful full-text search engine that provides multiple in
 
 2. Download the Jieba dictionary:
    ```bash
-   wget https://raw.githubusercontent.com/fxsjy/jieba/master/extra_dict/dict.txt.big
+   chmod +x download_dict.sh
+   ./download_dict.sh
    ```
 
 3. Build and start services:

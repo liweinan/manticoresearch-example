@@ -23,8 +23,8 @@ jobs:
         
     - name: Download and set up Jieba dictionary
       run: |
-        mkdir -p data
-        wget https://raw.githubusercontent.com/fxsjy/jieba/master/extra_dict/dict.txt.big -O data/dict.txt.big
+        chmod +x download_dict.sh
+        ./download_dict.sh
         
     - name: Build Docker images
       run: |
