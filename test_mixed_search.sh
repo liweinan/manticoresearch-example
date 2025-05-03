@@ -6,6 +6,15 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 YELLOW='\033[1;33m'
 
+# Detect if running in CI environment
+if [ -n "$CI" ]; then
+    echo "Running in CI environment"
+    MYSQL_HOST="manticore"
+else
+    echo "Running in local environment"
+    MYSQL_HOST="0"
+fi
+
 # Function to validate MySQL response
 validate_mysql_response() {
     local output="$1"
@@ -56,7 +65,7 @@ run_test() {
     echo "Testing search: $description"
     
     # Execute MySQL query and capture output
-    output=$(docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content FROM documents_idx WHERE MATCH('$query')\G")
+    output=$(docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SELECT id, title, content FROM documents_idx WHERE MATCH('$query')\G")
     
     # Print raw output for debugging
     echo -e "\nRaw MySQL output:"
@@ -87,7 +96,7 @@ run_test "English phrase 'search functionality'" "search functionality" 1 "searc
 # Test all documents
 echo -e "\n----------------------------------------"
 echo "Showing all documents in the index:"
-output=$(docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content FROM documents_idx\G")
+output=$(docker-compose exec manticore mysql -h $MYSQL_HOST -P 9306 -e "SELECT id, title, content FROM documents_idx\G")
 echo "$output"
 validate_mysql_response "$output" 5
 
