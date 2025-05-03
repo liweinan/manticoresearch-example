@@ -99,55 +99,64 @@ def index():
 
 @app.route('/search', methods=['GET', 'POST'])
 def search():
-    if request.method == 'POST':
-        data = request.get_json()
-        query = data.get('query', '')
-    else:
-        query = request.args.get('q', '')
-        # Decode URL-encoded query
-        query = query.encode('latin1').decode('utf-8')
+    try:
+        # Get query from either POST JSON or GET parameter
+        if request.method == 'POST':
+            data = request.get_json()
+            query = data.get('query', '')
+        else:
+            query = request.args.get('q', '')
+            # Decode URL-encoded query
+            query = query.encode('latin1').decode('utf-8')
 
-    if not query:
-        return jsonify([])
+        if not query:
+            return jsonify([])
 
-    # Tokenize the query using Jieba
-    tokens = list(jieba.cut(query))
-    search_query = ' '.join(tokens)
+        # Tokenize the query using Jieba
+        tokens = list(jieba.cut(query))
+        search_query = ' '.join(tokens)
 
-    # Connect to Manticore Search
-    conn = mysql.connector.connect(**MANTICORE_PARAMS)
-    cursor = conn.cursor(dictionary=True)
+        # Connect to Manticore Search
+        conn = mysql.connector.connect(**MANTICORE_PARAMS)
+        cursor = conn.cursor(dictionary=True)
 
-    # Execute search query
-    cursor.execute(f"""
-        SELECT id, title, content_text, content
-        FROM documents_idx
-        WHERE MATCH('{search_query}')
-        LIMIT 10
-    """)
+        # Execute search query with proper escaping
+        safe_query = search_query.replace("'", "''")
+        query_sql = f"""
+            SELECT id, title, content_text, content_json
+            FROM documents_idx
+            WHERE MATCH(%s)
+            LIMIT 10
+        """
+        cursor.execute(query_sql, (safe_query,))
 
-    results = []
-    for row in cursor:
-        print(f"Debug - Row content: {row}")  # Debug log
-        try:
-            content_data = {
-                'text': row['content_text'],
-                'tags': json.loads(row['content'])['tags'] if 'content' in row else []
-            }
-            results.append({
-                'id': row['id'],
-                'title': row['title'],
-                'content': content_data
-            })
-        except Exception as e:
-            print(f"Error processing row: {e}")  # Debug log
-            print(f"Row data: {row}")  # Debug log
-            continue
+        results = []
+        for row in cursor:
+            try:
+                # Parse the JSON content
+                content_json = json.loads(row['content_json'])
+                content_data = {
+                    'text': row['content_text'],
+                    'tags': content_json.get('tags', [])
+                }
+                results.append({
+                    'id': row['id'],
+                    'title': row['title'],
+                    'content': content_data
+                })
+            except Exception as e:
+                print(f"Error processing row: {e}")
+                print(f"Row data: {row}")
+                continue
 
-    cursor.close()
-    conn.close()
+        cursor.close()
+        conn.close()
 
-    return jsonify(results)
+        return jsonify(results)
+
+    except Exception as e:
+        print(f"Search error: {e}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     init_db()

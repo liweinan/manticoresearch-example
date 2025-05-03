@@ -110,7 +110,7 @@ http://localhost:8080
 The web interface provides:
 - A search box that supports both Chinese and English text
 - Real-time search results as you type
-- Display of document titles, content, and tags
+- Display of document titles, content text, and tags
 - Support for mixed language queries
 
 ### Search Examples
@@ -133,7 +133,7 @@ You can try various types of searches in the web interface:
 
 The search results will show:
 - Document title
-- Content snippet
+- Content text
 - Tags (if any)
 
 ### Using the Search API
@@ -195,11 +195,24 @@ This script tests:
 
 ```json
 {
-  "content": "这是一个测试文档，包含一些中文内容。This is a test document with some Chinese content.",
   "id": 1,
-  "title": "文档1"
+  "title": "文档1",
+  "content": {
+    "text": "这是一个测试文档，包含一些中文内容。This is a test document with some Chinese content.",
+    "tags": ["测试", "文档"]
+  }
 }
 ```
+
+### Running Direct Manticore Tests
+
+You can also test the Manticore search directly:
+
+```bash
+./test_mixed_search.sh
+```
+
+This script tests the search functionality at the Manticore level, showing both the content text and the full JSON content for each result.
 
 ## Configuration
 

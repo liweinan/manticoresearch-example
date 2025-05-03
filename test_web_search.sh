@@ -9,7 +9,7 @@ perform_search() {
     echo "Query: $query"
     
     echo "Response:"
-    response=$(curl -s -X POST "http://localhost:6000/search" \
+    response=$(curl -s -X POST "http://localhost:8080/search" \
          -H "Content-Type: application/json" \
          -d "{\"query\": \"$query\"}")
     
