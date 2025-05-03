@@ -11,7 +11,7 @@ BLUE='\033[0;34m'
 if [ -n "$CI" ]; then
     echo "Running in CI environment"
     MYSQL_HOST="manticore"
-    DOCKER_CMD="docker-compose run --rm manticore"
+    DOCKER_CMD="docker-compose exec -T manticore"
 else
     echo "Running in local environment"
     MYSQL_HOST="0"
