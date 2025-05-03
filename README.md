@@ -114,7 +114,7 @@ docker-compose up -d
 docker-compose ps
 
 # Monitor logs
-docker-compose logs -f
+docker-compose logs
 ```
 
 The services will start in this order:
@@ -133,18 +133,25 @@ docker-compose ps
 # manticoresearch-example-app-1 (running)
 ```
 
-6. **Test the Setup**:
+6. **Run Tests**:
 ```bash
-# Test web search functionality
-curl -X POST "http://localhost:8080/search" \
-     -H "Content-Type: application/json" \
-     -d '{"query": "测试"}'
+# Make test scripts executable
+chmod +x test_web_search.sh test_mixed_search.sh
 
-# Test mixed language search
-curl -X POST "http://localhost:8080/search" \
-     -H "Content-Type: application/json" \
-     -d '{"query": "测试 test"}'
+# Run web search tests
+./test_web_search.sh
+
+# Run direct Manticore tests
+./test_mixed_search.sh
 ```
+
+The test scripts will verify:
+- Chinese text search
+- English text search
+- Mixed language search
+- Web API functionality
+- Direct Manticore search functionality
+- Document indexing and retrieval
 
 7. **Troubleshooting**:
 If you encounter any issues:
