@@ -17,7 +17,9 @@ graph TD
         end
 
         subgraph Manticore Container
+            Entrypoint[Custom Entrypoint<br>Initialization]
             Manticore[Manticore Search<br>Ports: 9306/9308]
+            Entrypoint --> |Configure| Manticore
         end
 
         subgraph PostgreSQL Container
@@ -26,10 +28,11 @@ graph TD
     end
 
     %% Data Flow
-    Flask --> |Query| Manticore
-    Flask --> |Data Storage| PostgreSQL
+    Flask --> |Initialize DB| PostgreSQL
+    Flask --> |Search Query| Manticore
     Jieba --> |Tokenized Text| Manticore
-    PostgreSQL --> |Index Data| Manticore
+    Entrypoint --> |Check DB Ready| PostgreSQL
+    PostgreSQL --> |Data for Indexing| Manticore
     Manticore --> |Search Results| Flask
 ```
 
