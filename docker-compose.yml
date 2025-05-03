@@ -30,6 +30,8 @@ services:
     volumes:
       - ./manticore.conf:/etc/manticoresearch/manticore.conf  # Search configuration
       - manticore_data:/var/lib/manticore  # Persistent search index storage
+    environment:
+      - searchd_listen=9306:mysql41|9308:http  # Override default listen configuration
     ports:
       - "9306:9306"                      # MySQL protocol port
       - "9308:9308"                      # HTTP/JSON protocol port

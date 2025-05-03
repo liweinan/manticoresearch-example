@@ -233,7 +233,7 @@ def search():
         
         # Build and execute the search query
         sql = """
-        SELECT id, title, content_text, WEIGHT() as weight 
+        SELECT id, title, content, WEIGHT() as weight 
         FROM documents_idx 
         WHERE MATCH(%s)
         ORDER BY weight DESC
@@ -246,12 +246,25 @@ def search():
         results = cursor.fetchall()
         logger.debug(f"Found {len(results)} results")
         if results:
-            logger.debug(f"First result content: {results[0]['content_text']}")
+            logger.debug(f"First result content: {results[0]['content']}")
+        
+        # Process results to extract text from JSON content
+        processed_results = []
+        for result in results:
+            content_json = json.loads(result['content'])
+            processed_result = {
+                'id': result['id'],
+                'title': result['title'],
+                'content': result['content'],
+                'content_text': content_json['text'],
+                'weight': result['weight']
+            }
+            processed_results.append(processed_result)
         
         cursor.close()
         connection.close()
         
-        return jsonify(results)
+        return jsonify(processed_results)
         
     except mysql.connector.Error as e:
         # Log MySQL-specific errors with more detail

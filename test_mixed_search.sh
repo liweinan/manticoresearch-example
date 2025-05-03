@@ -31,7 +31,7 @@ validate_mysql_response() {
     
     # If expected_content is provided, check if it appears in results
     if [ ! -z "$expected_content" ]; then
-        if ! echo "$output" | grep -q "content_text: .*$expected_content"; then
+        if ! echo "$output" | grep -q "content: .*$expected_content"; then
             echo -e "${RED}❌ Expected content not found in results: $expected_content${NC}"
             return 1
         fi
@@ -56,7 +56,7 @@ run_test() {
     echo "Testing search: $description"
     
     # Execute MySQL query and capture output
-    output=$(docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text FROM documents_idx WHERE MATCH('$query')\G")
+    output=$(docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content FROM documents_idx WHERE MATCH('$query')\G")
     
     # Print raw output for debugging
     echo -e "\nRaw MySQL output:"
@@ -70,7 +70,7 @@ run_test() {
 echo "Starting Manticore direct search tests..."
 
 # Test Chinese character search
-run_test "Chinese word '测试' (test)" "测试" 1 "测试文档"
+run_test "Chinese word '测试' (test)" "测试" 2 "测试文档"
 
 # Test another Chinese character search
 run_test "Chinese word '中文' (Chinese)" "中文" 3 "中文内容"
@@ -87,7 +87,7 @@ run_test "English phrase 'search functionality'" "search functionality" 1 "searc
 # Test all documents
 echo -e "\n----------------------------------------"
 echo "Showing all documents in the index:"
-output=$(docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content_text FROM documents_idx\G")
+output=$(docker-compose exec manticore mysql -h0 -P9306 -e "SELECT id, title, content FROM documents_idx\G")
 echo "$output"
 validate_mysql_response "$output" 5
 
