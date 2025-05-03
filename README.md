@@ -76,48 +76,87 @@ Manticore Search is a powerful full-text search engine that provides multiple in
 - curl (for testing)
 - Python 3.x (for running test scripts)
 
-## Installation
+## Step-by-Step Setup
 
-1. Clone the repository:
+1. **Clone and Prepare the Repository**:
 ```bash
 git clone <repository-url>
 cd manticoresearch-example
 ```
 
-2. Download the Jieba dictionary:
+2. **Download Required Dependencies**:
 ```bash
+# Download Jieba dictionary
+./download_dict.sh
+
+# If behind a firewall, use proxy:
+export http_proxy=http://localhost:7890 https_proxy=http://localhost:7890
 ./download_dict.sh
 ```
-This will download the Chinese dictionary file to `data/dict.txt.big`.
 
-3. Clean up any existing containers and volumes:
+3. **Build and Start Services**:
 ```bash
+# Clean up any existing containers and volumes
 docker-compose down -v
-```
 
-4. Build and start the services:
-```bash
+# Build and start services with proxy settings
+export http_proxy=http://localhost:7890 https_proxy=http://localhost:7890
+docker-compose build
 docker-compose up -d
 ```
 
-This will start:
-- PostgreSQL database (port 5432)
-- Manticore Search engine (ports 9306/9308)
-- Flask web application (port 8080)
-
-5. Create the Manticore search index:
+4. **Monitor Service Startup**:
 ```bash
-docker-compose exec manticore indexer --all
-```
-
-6. Verify services are running:
-```bash
+# Check service status
 docker-compose ps
+
+# Monitor logs
+docker-compose logs -f
 ```
-You should see all three services running:
-- manticoresearch-example-postgres-1 (healthy)
-- manticoresearch-example-manticore-1 (running)
-- manticoresearch-example-app-1 (running)
+
+The services will start in this order:
+1. PostgreSQL starts and becomes healthy
+2. Flask app initializes the database with sample data
+3. Manticore waits for the database to be ready and creates the search index
+
+5. **Verify Setup**:
+```bash
+# Check if all services are running
+docker-compose ps
+
+# Expected output:
+# manticoresearch-example-postgres-1 (healthy)
+# manticoresearch-example-manticore-1 (running)
+# manticoresearch-example-app-1 (running)
+```
+
+6. **Test the Setup**:
+```bash
+# Test web search functionality
+curl -X POST "http://localhost:8080/search" \
+     -H "Content-Type: application/json" \
+     -d '{"query": "测试"}'
+
+# Test mixed language search
+curl -X POST "http://localhost:8080/search" \
+     -H "Content-Type: application/json" \
+     -d '{"query": "测试 test"}'
+```
+
+7. **Troubleshooting**:
+If you encounter any issues:
+```bash
+# Check service logs
+docker-compose logs app        # Flask app logs
+docker-compose logs manticore  # Manticore Search logs
+docker-compose logs postgres   # PostgreSQL logs
+
+# Rebuild Manticore index if needed
+docker-compose exec manticore indexer --all --rotate
+
+# Restart services if needed
+docker-compose restart
+```
 
 ## Project Structure
 
@@ -127,10 +166,11 @@ manticoresearch-example/
 ├── docker-compose.yml     # Docker services configuration
 ├── manticore.conf        # Manticore Search configuration
 ├── pg_hba.conf           # PostgreSQL authentication configuration
-├── data/                 # Data directory
-│   └── dict.txt.big     # Jieba dictionary file (downloaded)
-├── test_web_search.sh    # Web API test script
-└── test_mixed_search.sh  # Direct Manticore test script
+├── Dockerfile.manticore  # Custom Manticore image with PostgreSQL client
+├── docker-entrypoint.sh  # Manticore initialization script
+├── requirements.txt      # Python dependencies
+└── data/                 # Data directory
+    └── dict.txt.big     # Jieba Chinese dictionary
 ```
 
 ## Usage
