@@ -84,6 +84,19 @@ docker-compose up -d
 docker-compose ps
 ```
 
+### Accessing the Web Interface
+
+After starting the services, you can access the web interface at:
+```
+http://localhost:6000
+```
+
+The web interface provides:
+- A search box that supports both Chinese and English text
+- Real-time search results as you type
+- Display of document titles, content, and tags
+- Support for mixed language queries
+
 ### Using the Search API
 
 The search API supports both GET and POST requests:
