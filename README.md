@@ -88,6 +88,7 @@ cd manticoresearch-example
 ```bash
 ./download_dict.sh
 ```
+This will download the Chinese dictionary file to `data/dict.txt.big`.
 
 3. Build and start the services:
 ```bash
@@ -95,9 +96,18 @@ docker-compose up -d
 ```
 
 This will start:
-- PostgreSQL database
-- Manticore Search engine
-- Flask web application
+- PostgreSQL database (port 5432)
+- Manticore Search engine (ports 9306/9308)
+- Flask web application (port 8080)
+
+4. Verify services are running:
+```bash
+docker-compose ps
+```
+You should see all three services running:
+- manticoresearch-example-postgres-1 (healthy)
+- manticoresearch-example-manticore-1 (running)
+- manticoresearch-example-app-1 (running)
 
 ## Project Structure
 
@@ -213,10 +223,10 @@ The project includes a test script that verifies the search functionality:
 ```
 
 This script tests:
-- Chinese text search
-- English text search
-- Mixed language search
-- Phrase search
+- Chinese text search (测试, 中文)
+- English text search (test, english)
+- Mixed language search (测试 test)
+- Phrase search (search functionality)
 
 ### Sample Test Output
 
@@ -226,7 +236,7 @@ This script tests:
   "title": "文档1",
   "content": {
     "text": "这是一个测试文档，包含一些中文内容。This is a test document with some Chinese content.",
-    "tags": ["测试", "文档"]
+    "tags": ["测试", "中文", "test"]
   }
 }
 ```
@@ -239,7 +249,28 @@ You can also test the Manticore search directly:
 ./test_mixed_search.sh
 ```
 
-This script tests the search functionality at the Manticore level, showing both the content text and the full JSON content for each result.
+This script tests:
+- Chinese character search
+- English word search
+- Phrase search
+- Shows all documents in the index
+
+### Verifying Index Status
+
+To check the Manticore index status:
+
+```bash
+docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW TABLES;"
+```
+
+You should see:
+```
++---------------+-------+
+| Table         | Type  |
++---------------+-------+
+| documents_idx | local |
++---------------+-------+
+```
 
 ## Configuration
 
