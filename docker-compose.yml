@@ -50,6 +50,10 @@ services:
       - POSTGRES_PASSWORD=postgres       # PostgreSQL password
       - POSTGRES_DB=search_db            # PostgreSQL database name
       - MANTICORE_HOST=manticore         # Manticore Search hostname
+      - MANTICORE_PORT=9306              # Manticore MySQL protocol port
+      - MANTICORE_USER=                  # Manticore username (empty for no auth)
+      - MANTICORE_PASSWORD=              # Manticore password (empty for no auth)
+      - MANTICORE_DATABASE=              # Manticore database (empty for no specific db)
     depends_on:
       postgres:
         condition: service_healthy        # Wait for PostgreSQL to be ready

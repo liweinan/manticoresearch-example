@@ -272,6 +272,46 @@ You should see:
 +---------------+-------+
 ```
 
+### Viewing Search Logs
+
+Manticore Search provides several ways to view search logs through the SQL interface:
+
+1. **Check Log Settings**:
+```bash
+docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW VARIABLES LIKE 'log%';"
+```
+
+2. **View Recent Queries**:
+```bash
+docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW QUERIES;"
+```
+
+3. **View Query Log**:
+```bash
+docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW QUERY LOG;"
+```
+
+4. **View Recent Errors**:
+```bash
+docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW STATUS LIKE 'error%';"
+```
+
+5. **View Performance Metrics**:
+```bash
+docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW STATUS LIKE 'perf%';"
+```
+
+6. **View Thread Status**:
+```bash
+docker-compose exec manticore mysql -h127.0.0.1 -P9306 -e "SHOW THREADS;"
+```
+
+These commands help you:
+- Monitor search performance
+- Debug query issues
+- Track system status
+- Identify bottlenecks
+
 ## Configuration
 
 ### PostgreSQL

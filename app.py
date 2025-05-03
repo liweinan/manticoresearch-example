@@ -24,6 +24,7 @@ import mysql.connector
 import jieba
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
+import logging
 
 # Load environment variables from .env file
 # This allows configuration without hardcoding sensitive information
@@ -44,14 +45,24 @@ DB_PARAMS = {
 }
 
 # Manticore Search connection parameters
-# Manticore Search provides both MySQL and HTTP interfaces
 MANTICORE_PARAMS = {
     'host': os.getenv('MANTICORE_HOST', 'manticore'),    # Manticore Search host
-    'port': 9306,                                        # MySQL protocol port
-    'user': '',                                          # No authentication required
-    'password': '',                                      # No password required
-    'database': ''                                       # No specific database required
+    'port': int(os.getenv('MANTICORE_PORT', '9306')),    # MySQL protocol port
+    'user': os.getenv('MANTICORE_USER', ''),             # No authentication required
+    'password': os.getenv('MANTICORE_PASSWORD', ''),      # No password required
+    'database': os.getenv('MANTICORE_DATABASE', ''),     # No specific database required
+    'use_pure': True,                                    # Use pure Python implementation
+    'raise_on_warnings': True                           # Raise exceptions on warnings
 }
+
+# Configure logging with detailed format
+# This will show timestamp, logger name, log level, and message
+logging.basicConfig(
+    level=logging.DEBUG,  # Show all log levels (DEBUG and above)
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+# Create a logger instance for this module
+logger = logging.getLogger(__name__)
 
 def wait_for_postgres(max_retries=10, delay=10):
     """
@@ -167,7 +178,7 @@ def index():
 @app.route('/search', methods=['GET', 'POST'])
 def search():
     """
-    Handle search requests.
+    Handle search requests with detailed logging.
     
     This endpoint:
     1. Accepts both GET and POST requests
@@ -176,77 +187,66 @@ def search():
     4. Searches using Manticore Search
     5. Returns results in JSON format
     
-    The function demonstrates:
-    - URL parameter handling
-    - JSON request handling
-    - Chinese text processing
-    - Database querying
-    - Error handling
-    - Response formatting
-    
-    Returns:
-        JSON: Search results or error message
+    Logging is added at key points to track:
+    - Query reception
+    - Connection status
+    - Tokenization results
+    - SQL query execution
+    - Result count
+    - Any errors that occur
     """
+    # Get query from either GET parameters or POST JSON
+    if request.method == 'GET':
+        query = request.args.get('q', '')
+    else:
+        query = request.json.get('q', '')
+    
+    # Log the received query
+    logger.debug(f"Received search query: {query}")
+    
     try:
-        # Get query from either POST JSON or GET parameter
-        if request.method == 'POST':
-            data = request.get_json()
-            query = data.get('query', '')
-        else:
-            query = request.args.get('q', '')
-            # Decode URL-encoded query for Chinese characters
-            query = query.encode('latin1').decode('utf-8')
-
-        if not query:
-            return jsonify([])
-
-        # Tokenize the query using Jieba for Chinese text
-        # This splits Chinese text into meaningful words
-        tokens = list(jieba.cut(query))
-        search_query = ' '.join(tokens)
-
-        # Connect to Manticore Search using MySQL protocol
-        conn = mysql.connector.connect(**MANTICORE_PARAMS)
-        cursor = conn.cursor(dictionary=True)
-
-        # Execute search query with proper escaping to prevent SQL injection
-        safe_query = search_query.replace("'", "''")
-        query_sql = f"""
-            SELECT id, title, content_text, content_json
-            FROM documents_idx
-            WHERE MATCH(%s)
-            LIMIT 10
+        # Log connection parameters (without password)
+        logger.debug(f"Connecting to Manticore with params: { {k:v for k,v in MANTICORE_PARAMS.items() if k != 'password'} }")
+        
+        # Connect to Manticore Search using the configured parameters
+        connection = mysql.connector.connect(**MANTICORE_PARAMS)
+        logger.debug("Connected to Manticore")
+        
+        cursor = connection.cursor(dictionary=True)
+        
+        # Tokenize the query using Jieba
+        tokens = jieba.cut(query)
+        search_terms = ' '.join(tokens)
+        logger.debug(f"Tokenized query: {search_terms}")
+        
+        # Build and execute the search query
+        sql = """
+        SELECT id, title, content_text, WEIGHT() as weight 
+        FROM documents_idx 
+        WHERE MATCH(%s)
+        ORDER BY weight DESC
+        LIMIT 10
         """
-        cursor.execute(query_sql, (safe_query,))
-
-        # Process and format results
-        results = []
-        for row in cursor:
-            try:
-                # Parse the JSON content and combine with text
-                content_json = json.loads(row['content_json'])
-                content_data = {
-                    'text': row['content_text'],
-                    'tags': content_json.get('tags', [])
-                }
-                results.append({
-                    'id': row['id'],
-                    'title': row['title'],
-                    'content': content_data
-                })
-            except Exception as e:
-                print(f"Error processing row: {e}")
-                print(f"Row data: {row}")
-                continue
-
+        
+        logger.debug(f"Executing SQL query: {sql % search_terms}")
+        cursor.execute(sql, (search_terms,))
+        
+        results = cursor.fetchall()
+        logger.debug(f"Found {len(results)} results")
+        
         cursor.close()
-        conn.close()
-
+        connection.close()
+        
         return jsonify(results)
-
+        
+    except mysql.connector.Error as e:
+        # Log MySQL-specific errors with more detail
+        logger.error(f"MySQL Error during search: {str(e)}", exc_info=True)
+        return jsonify({'error': f"Database error: {str(e)}"}), 500
     except Exception as e:
-        print(f"Search error: {e}")
-        return jsonify({"error": str(e)}), 500
+        # Log other errors with full stack trace
+        logger.error(f"Error during search: {str(e)}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Initialize database and start the Flask application
