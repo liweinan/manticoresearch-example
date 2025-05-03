@@ -264,76 +264,6 @@ This script tests the search functionality at the Manticore level, showing both 
 - Debug mode: Enabled
 - Jieba dictionary: Uses dict.txt.big for better Chinese word segmentation
 
-## Incremental Indexing
-
-Manticore Search supports several approaches for incremental indexing, allowing you to update search indexes without full rebuilds:
-
-### 1. Delta Indexing
-Delta indexing uses a "main + delta" scheme where:
-- Main index contains historical data
-- Delta index contains recent changes
-- Both indexes are searched together
-
-Example configuration:
-```plaintext
-source documents {
-    # Main index source (older data)
-    sql_query = SELECT ... FROM documents WHERE updated_at < NOW() - INTERVAL '1 day'
-}
-
-source documents_delta {
-    # Delta index source (recent data)
-    sql_query = SELECT ... FROM documents WHERE updated_at >= NOW() - INTERVAL '1 day'
-}
-```
-
-### 2. Real-Time (RT) Indexes
-RT indexes allow immediate updates without rebuilding:
-- Documents can be inserted, updated, or deleted in real-time
-- No need for periodic index rebuilds
-- Higher memory usage but better for frequently changing data
-
-Example usage:
-```sql
--- Create RT index
-CREATE TABLE rt_documents (
-    id bigint,
-    title string,
-    content_text string,
-    content_json string,
-    updated_at timestamp
-);
-
--- Insert/update documents
-REPLACE INTO rt_documents VALUES (1, 'Title', 'Content', '{"json": "data"}', NOW());
-```
-
-### 3. Percona Indexing
-Percona indexing provides near real-time updates by:
-- Using PostgreSQL's logical decoding
-- Automatically tracking database changes
-- More complex setup but better for high-availability systems
-
-### Choosing the Right Approach
-
-1. **Delta Indexing** is best for:
-   - Large datasets
-   - Batch updates
-   - Lower memory usage
-   - Periodic updates (e.g., hourly/daily)
-
-2. **Real-Time Indexes** are best for:
-   - Frequently changing data
-   - Immediate updates
-   - Smaller datasets
-   - Higher memory availability
-
-3. **Percona Indexing** is best for:
-   - High-availability systems
-   - Near real-time requirements
-   - Complex database setups
-   - When automatic change tracking is needed
-
 ## Troubleshooting
 
 1. If services don't start properly:
@@ -393,40 +323,148 @@ This project is open source and available under the MIT License.
 4. Push to the branch
 5. Create a new Pull Request 
 
-## Appendix: Percona Indexing Deep Dive
+## Appendix
+
+### 1. Incremental Indexing Deep Dive
+
+Manticore Search supports several approaches for incremental indexing, allowing you to update search indexes without full rebuilds. This section provides a detailed technical explanation of each approach.
+
+#### Delta Indexing
+Delta indexing uses a "main + delta" scheme where:
+- Main index contains historical data
+- Delta index contains recent changes
+- Both indexes are searched together
+
+**Technical Implementation**:
+1. **Main Index Configuration**:
+```plaintext
+source documents {
+    # Main index source (older data)
+    sql_query = SELECT id, title, content->>'text' as content_text, content::text as content_json, updated_at \
+                FROM documents \
+                WHERE updated_at < NOW() - INTERVAL '1 day'
+    
+    # Index configuration
+    sql_attr_timestamp = updated_at
+    sql_field_string = content_text
+    sql_attr_string = content_json
+}
+```
+
+2. **Delta Index Configuration**:
+```plaintext
+source documents_delta {
+    # Delta index source (recent data)
+    sql_query = SELECT id, title, content->>'text' as content_text, content::text as content_json, updated_at \
+                FROM documents \
+                WHERE updated_at >= NOW() - INTERVAL '1 day'
+    
+    # Same configuration as main index
+    sql_attr_timestamp = updated_at
+    sql_field_string = content_text
+    sql_attr_string = content_json
+}
+```
+
+3. **Index Merging**:
+- Delta index is periodically merged into main index
+- Merging can be scheduled or triggered manually
+- During merge, both indexes remain searchable
+
+**Advantages**:
+- Efficient for large datasets
+- Lower memory usage
+- Good for batch updates
+- Maintains search availability during updates
+
+**Limitations**:
+- Periodic updates required
+- Merge operations can be resource-intensive
+- Need to manage merge scheduling
+
+#### Real-Time (RT) Indexes
+RT indexes allow immediate updates without rebuilding:
+- Documents can be inserted, updated, or deleted in real-time
+- No need for periodic index rebuilds
+- Higher memory usage but better for frequently changing data
+
+**Technical Implementation**:
+1. **Index Creation**:
+```sql
+-- Create RT index
+CREATE TABLE rt_documents (
+    id bigint,
+    title string,
+    content_text string,
+    content_json string,
+    updated_at timestamp
+);
+```
+
+2. **Document Operations**:
+```sql
+-- Insert document
+INSERT INTO rt_documents VALUES (1, 'Title', 'Content', '{"json": "data"}', NOW());
+
+-- Update document
+REPLACE INTO rt_documents VALUES (1, 'Updated Title', 'Updated Content', '{"json": "updated"}', NOW());
+
+-- Delete document
+DELETE FROM rt_documents WHERE id = 1;
+```
+
+3. **Configuration Options**:
+```plaintext
+index rt_documents {
+    type = rt
+    path = /var/lib/manticore/data/rt_documents
+    
+    # Memory settings
+    rt_mem_limit = 128M
+    
+    # Field settings
+    rt_field = title
+    rt_field = content_text
+    rt_attr_string = content_json
+    rt_attr_timestamp = updated_at
+}
+```
+
+**Advantages**:
+- Immediate updates
+- No merge operations needed
+- Simple to use
+- Good for frequently changing data
+
+**Limitations**:
+- Higher memory usage
+- Limited to available memory
+- Not ideal for very large datasets
+
+#### Percona Indexing
+Percona indexing provides near real-time updates by:
+- Using PostgreSQL's logical decoding
+- Automatically tracking database changes
+- More complex setup but better for high-availability systems
+
+### 2. Percona Indexing Deep Dive
 
 Percona Indexing in Manticore Search is a powerful method that uses PostgreSQL's logical decoding feature to track and replicate database changes in real-time. This section provides a detailed technical explanation for those interested in implementing this advanced feature.
 
-### How Percona Indexing Works
-
-1. **Core Mechanism**:
-   - Uses PostgreSQL's logical decoding (introduced in PostgreSQL 9.4)
-   - Tracks changes at the transaction level
-   - Automatically captures INSERT, UPDATE, and DELETE operations
-   - Streams changes to Manticore Search in near real-time
-
-2. **Technical Components**:
-   - PostgreSQL's logical decoding slot
-   - Manticore's Percona source type
-   - Change Data Capture (CDC) mechanism
-   - Write-Ahead Log (WAL) processing
-
-### Setup Requirements
+#### Technical Implementation
 
 1. **PostgreSQL Configuration**:
-   ```sql
-   -- Required PostgreSQL settings
-   wal_level = logical
-   max_replication_slots = 1  # or more if needed
-   ```
+```sql
+-- Enable logical decoding
+ALTER SYSTEM SET wal_level = logical;
+ALTER SYSTEM SET max_replication_slots = 10;
+ALTER SYSTEM SET max_wal_senders = 10;
 
-2. **Database Permissions**:
-   - Replication role
-   - Logical decoding permissions
-   - Appropriate table access rights
+-- Create replication slot
+SELECT * FROM pg_create_logical_replication_slot('manticore_slot', 'wal2json');
+```
 
-### Configuration Example
-
+2. **Manticore Configuration**:
 ```plaintext
 source percona_source {
     type = percona
@@ -451,294 +489,243 @@ source percona_source {
 }
 ```
 
-### Advantages and Limitations
+#### Key Components
 
-1. **Advantages**:
-   - Near real-time updates (sub-second latency)
-   - No polling or manual synchronization needed
-   - Automatic change tracking
-   - Low database overhead
-   - Reliable change delivery
+1. **PostgreSQL Logical Decoding**:
+   - Captures changes at the transaction level
+   - Provides consistent change data
+   - Supports filtering and transformation
 
-2. **Limitations**:
-   - Requires PostgreSQL 9.4 or later
-   - Complex initial setup
-   - Requires careful monitoring
-   - Additional database configuration
+2. **Replication Slots**:
+   - Ensure changes are not lost
+   - Track replication progress
+   - Support multiple consumers
 
-### Monitoring and Maintenance
+3. **WAL2JSON Plugin**:
+   - Converts WAL data to JSON format
+   - Provides detailed change information
+   - Supports various output formats
 
-1. **Key Metrics to Monitor**:
-   - Replication slot size
-   - Replication lag
-   - WAL growth
-   - Change processing rate
+#### Advantages
 
-2. **Maintenance Tasks**:
-   - Regular slot cleanup
-   - WAL management
-   - Performance monitoring
-   - Error log review
+1. **Real-time Updates**:
+   - Changes are captured immediately
+   - No polling required
+   - Low latency updates
 
-### Troubleshooting Guide
+2. **Data Consistency**:
+   - Transaction-level consistency
+   - No data loss
+   - Reliable change tracking
 
-1. **Common Issues**:
-   - Replication slot overflow
-   - Network connectivity problems
-   - Permission issues
-   - WAL configuration errors
+3. **Flexibility**:
+   - Supports complex transformations
+   - Configurable filtering
+   - Multiple output formats
 
-2. **Diagnostic Commands**:
-   ```sql
-   -- Check replication slot status
-   SELECT * FROM pg_replication_slots;
-   
-   -- Monitor replication lag
-   SELECT * FROM pg_stat_replication;
-   
-   -- Check WAL configuration
-   SHOW wal_level;
-   ```
+#### Limitations
 
-### Comparison with Other Methods
+1. **Resource Usage**:
+   - Higher CPU usage
+   - Increased disk I/O
+   - Memory requirements
 
-| Feature | Delta Indexing | Real-Time Indexes | Percona Indexing |
-|---------|---------------|------------------|------------------|
-| Update Frequency | Periodic | Immediate | Near real-time |
-| Setup Complexity | Simple | Moderate | Complex |
-| Database Load | High during rebuild | Low | Very Low |
-| Memory Usage | Low | High | Moderate |
-| Reliability | Good | Good | Excellent |
-| Maintenance | Manual | Application | Automatic |
+2. **Setup Complexity**:
+   - Multiple components to configure
+   - Requires PostgreSQL expertise
+   - More complex monitoring
 
-### Best Practices
+3. **Version Requirements**:
+   - PostgreSQL 9.4 or later
+   - Specific extensions required
+   - Plugin compatibility
+
+#### Monitoring
+
+1. **PostgreSQL Monitoring**:
+```sql
+-- Check replication slots
+SELECT * FROM pg_replication_slots;
+
+-- Monitor WAL sender status
+SELECT * FROM pg_stat_replication;
+
+-- Check WAL usage
+SELECT * FROM pg_stat_wal;
+```
+
+2. **Manticore Monitoring**:
+```sql
+-- Check index status
+SHOW INDEX documents STATUS;
+
+-- Monitor replication progress
+SHOW INDEX documents REPLICATION;
+```
+
+#### Best Practices
 
 1. **Configuration**:
    - Use appropriate WAL settings
    - Configure sufficient replication slots
    - Set up proper monitoring
-   - Implement error handling
 
 2. **Performance**:
-   - Monitor replication lag
+   - Monitor resource usage
    - Optimize WAL settings
    - Regular maintenance
-   - Proper indexing strategy
 
-3. **Security**:
-   - Use secure connections
-   - Implement proper access controls
-   - Regular security audits
-   - Monitor for unauthorized access
+3. **Reliability**:
+   - Regular backups
+   - Monitor replication lag
+   - Test failover procedures
 
-### Additional Resources
+#### Troubleshooting
 
-1. **Documentation**:
-   - [PostgreSQL Logical Decoding](https://www.postgresql.org/docs/current/logicaldecoding.html)
-   - [Manticore Search Percona Source](https://manual.manticoresearch.com/Adding_data_from_external_storages/Adding_data_from_Percona)
-   - [WAL Configuration Guide](https://www.postgresql.org/docs/current/runtime-config-wal.html)
+1. **Common Issues**:
+   - Replication lag
+   - WAL file accumulation
+   - Slot conflicts
 
-2. **Tools**:
-   - pg_stat_replication
-   - pg_replication_slots
-   - WAL monitoring tools
-   - Performance monitoring dashboards 
+2. **Solutions**:
+   - Check PostgreSQL logs
+   - Monitor system resources
+   - Verify configuration
 
-## Comparison: MySQL Binary Log vs PostgreSQL Percona Indexing
+3. **Recovery**:
+   - Recreate replication slots
+   - Reset replication state
+   - Rebuild indexes if needed
 
-This section provides a detailed comparison between MySQL's Binary Log Replication and PostgreSQL's Percona Indexing when used with Manticore Search.
+### 3. MySQL Binary Log vs PostgreSQL Percona Indexing Comparison
 
-### 1. Architecture Comparison
+#### Architecture Comparison
 
 | Aspect | MySQL Binary Log | PostgreSQL Percona |
 |--------|-----------------|-------------------|
-| Change Tracking | Binary Log (binlog) | Write-Ahead Log (WAL) |
-| Change Format | ROW/STATEMENT/MIXED | Logical Decoding |
-| Transaction Support | Yes (GTID) | Yes (XID) |
-| Change Filtering | Basic (database/table) | Advanced (column/row) |
+| Change Tracking | Binary log (binlog) | Write-Ahead Log (WAL) |
+| Change Format | Binary format | JSON format |
+| Transaction Support | Yes | Yes |
+| Change Filtering | Limited | Advanced |
 | Setup Complexity | Moderate | Complex |
-| Performance Impact | Low | Very Low |
-| Version Support | MySQL 5.6+ | PostgreSQL 9.4+ |
+| Performance Impact | Low | Moderate |
+| Version Support | All MySQL versions | PostgreSQL 9.4+ |
 
-### 2. Configuration Examples
+#### Configuration Examples
 
-**MySQL Binary Log Setup**:
+**MySQL Binary Log Configuration**:
 ```sql
--- MySQL Configuration
+-- Enable binary logging
 [mysqld]
 server-id = 1
 log-bin = mysql-bin
 binlog_format = ROW
 binlog_row_image = FULL
 
--- Manticore Source Configuration
-source mysql_source {
-    type = mysql
-    sql_host = mysql
-    sql_user = repl
-    sql_pass = password
-    sql_db = search_db
-    sql_port = 3306
-    
-    # Binary log settings
-    binlog_path = /var/lib/mysql/mysql-bin
-    binlog_name = mysql-bin
-    binlog_position = 4
-}
+-- Create replication user
+CREATE USER 'repl'@'%' IDENTIFIED BY 'password';
+GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
 ```
 
-**PostgreSQL Percona Setup**:
-```plaintext
-source percona_source {
-    type = percona
-    sql_host = postgres
-    sql_user = postgres
-    sql_pass = postgres
-    sql_db = search_db
-    sql_port = 5432
-    
-    replication_slot = manticore_slot
-    wal2json = 1
-}
+**PostgreSQL Percona Configuration**:
+```sql
+-- Enable logical decoding
+ALTER SYSTEM SET wal_level = logical;
+ALTER SYSTEM SET max_replication_slots = 10;
+
+-- Create replication slot
+SELECT * FROM pg_create_logical_replication_slot('manticore_slot', 'wal2json');
 ```
 
-### 3. Performance Characteristics
+#### Performance Characteristics
 
 | Metric | MySQL Binary Log | PostgreSQL Percona |
 |--------|-----------------|-------------------|
-| Latency | 100-500ms | 10-100ms |
-| CPU Usage | Moderate | Low |
-| Memory Usage | Moderate | Low |
-| Network Usage | Higher | Lower |
+| Latency | Low | Moderate |
+| CPU Usage | Low | Moderate |
+| Memory Usage | Low | Moderate |
+| Network Usage | Low | Moderate |
 | Scalability | Good | Excellent |
-| Recovery Time | Moderate | Fast |
+| Recovery Time | Fast | Moderate |
 
-### 4. Feature Comparison
+#### Feature Comparison
 
 1. **Change Tracking**:
-   - **MySQL**: 
-     - Tracks all changes in binary log
-     - Limited filtering options
-     - Row-based changes
-   - **PostgreSQL**:
-     - Logical decoding of WAL
-     - Advanced filtering
-     - Column-level changes
+   - MySQL: Binary format, efficient but less flexible
+   - PostgreSQL: JSON format, more flexible but higher overhead
 
 2. **Data Consistency**:
-   - **MySQL**:
-     - Eventual consistency
-     - GTID for transaction tracking
-     - Possible gaps in replication
-   - **PostgreSQL**:
-     - Strong consistency
-     - Transaction-level tracking
-     - No gaps in replication
+   - MySQL: Transaction-based, good for consistency
+   - PostgreSQL: Transaction-based with better isolation
 
 3. **Monitoring**:
-   - **MySQL**:
-     ```sql
-     SHOW SLAVE STATUS\G
-     SHOW BINARY LOGS;
-     SHOW BINLOG EVENTS;
-     ```
-   - **PostgreSQL**:
-     ```sql
-     SELECT * FROM pg_replication_slots;
-     SELECT * FROM pg_stat_replication;
-     SHOW wal_level;
-     ```
+   - MySQL: Built-in tools and commands
+   - PostgreSQL: Requires additional tools
 
-### 5. Use Case Suitability
+#### Use Case Suitability
 
-1. **MySQL Binary Log is Better For**:
-   - Simple replication needs
-   - Traditional master-slave setups
-   - When using MySQL as primary database
-   - When simplicity is preferred over features
-   - When network bandwidth is not a concern
+**MySQL Binary Log is better for**:
+- Simple replication setups
+- Lower resource environments
+- Traditional MySQL applications
 
-2. **PostgreSQL Percona is Better For**:
-   - Complex data synchronization
-   - High-performance requirements
-   - When using PostgreSQL as primary database
-   - When advanced filtering is needed
-   - When network efficiency is important
+**PostgreSQL Percona is better for**:
+- Complex data transformations
+- Advanced filtering requirements
+- High-availability systems
 
-### 6. Implementation Considerations
+#### Implementation Considerations
 
-1. **MySQL Binary Log**:
-   - Easier to set up
-   - More common in production
-   - Better documentation
-   - More third-party tools
-   - Higher resource usage
+1. **Setup**:
+   - MySQL: Simpler setup, fewer configuration options
+   - PostgreSQL: More complex setup, more configuration options
 
-2. **PostgreSQL Percona**:
-   - More complex setup
-   - Better performance
-   - More flexible
-   - Lower resource usage
-   - Advanced features
+2. **Resource Usage**:
+   - MySQL: Lower resource requirements
+   - PostgreSQL: Higher resource requirements
 
-### 7. Best Practices for Each
+#### Best Practices
 
 **MySQL Binary Log**:
-- Use ROW-based replication
-- Monitor replication lag
-- Regular binary log backups
-- Proper error handling
-- Network optimization
+1. Use ROW-based replication
+2. Monitor replication lag
+3. Regular backup of binary logs
 
 **PostgreSQL Percona**:
-- Proper WAL configuration
-- Monitor replication slots
-- Regular maintenance
-- Error handling
-- Performance tuning
+1. Configure appropriate WAL settings
+2. Monitor replication slots
+3. Regular cleanup of old WAL files
 
-### 8. Troubleshooting
+#### Troubleshooting
 
-**MySQL Common Issues**:
-- Replication lag
-- Binary log size
-- Network problems
-- Slave errors
-- GTID issues
+**MySQL Binary Log Issues**:
+1. Replication lag
+2. Binary log corruption
+3. Network issues
 
-**PostgreSQL Common Issues**:
-- Replication slot overflow
-- WAL configuration
-- Permission problems
-- Network issues
-- Logical decoding errors
+**PostgreSQL Percona Issues**:
+1. WAL file accumulation
+2. Replication slot issues
+3. Logical decoding errors
 
-### 9. Migration Considerations
+#### Migration Considerations
 
-1. **MySQL to PostgreSQL**:
-   - Different change tracking mechanisms
-   - Different transaction models
-   - Different monitoring tools
-   - Different performance characteristics
+1. **Change Tracking**:
+   - Different mechanisms for tracking changes
+   - Different formats for change data
 
-2. **PostgreSQL to MySQL**:
-   - Loss of advanced features
-   - Different monitoring approach
-   - Different performance patterns
-   - Different maintenance requirements
+2. **Performance**:
+   - Different resource requirements
+   - Different impact on source database
 
-### 10. Future Trends
+#### Future Trends
 
 1. **MySQL**:
-   - Improved binary log compression
-   - Better filtering options
-   - Enhanced monitoring
-   - Performance optimizations
+   - Improved binary log format
+   - Better monitoring tools
+   - Enhanced filtering capabilities
 
 2. **PostgreSQL**:
-   - Enhanced logical decoding
-   - Better performance
-   - More monitoring tools
-   - Advanced features
-
-This comparison should help you choose the right approach based on your specific needs and database environment. 
+   - More efficient WAL processing
+   - Better integration with search engines
+   - Enhanced monitoring capabilities 
