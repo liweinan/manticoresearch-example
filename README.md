@@ -371,6 +371,38 @@ source documents_delta {
 - Merging can be scheduled or triggered manually
 - During merge, both indexes remain searchable
 
+**Merge Process Details**:
+1. **Merge Process Overview**:
+   - The merge operation combines the delta index into the main index
+   - During the merge, both indexes remain searchable
+   - The merge is typically triggered by the `indexer` tool
+
+2. **Merge Commands**:
+   ```bash
+   # Manual merge command
+   indexer --merge main_index delta_index --rotate
+   ```
+   The `--rotate` flag ensures the new merged index is atomically swapped with the old one.
+
+3. **Merge Steps**:
+   - Manticore creates a new index that combines both main and delta data
+   - The merge is done in a way that preserves document IDs and attributes
+   - Once the merge is complete, the new index replaces the old one
+   - The delta index is then cleared and ready for new updates
+
+4. **Scheduling Merges**:
+   - Can be scheduled using cron jobs
+   - Example cron schedule for daily merges:
+   ```bash
+   0 2 * * * /usr/bin/indexer --merge main_index delta_index --rotate
+   ```
+
+5. **Important Considerations**:
+   - Merge operations can be resource-intensive
+   - During merge, both indexes are still searchable
+   - The merge is atomic - either completely succeeds or fails
+   - Disk space is required for both the old and new indexes during merge
+
 **Advantages**:
 - Efficient for large datasets
 - Lower memory usage
