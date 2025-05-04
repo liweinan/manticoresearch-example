@@ -36,6 +36,66 @@ graph TD
     Manticore --> |Search Results| Flask
 ```
 
+## Ngram Tokenization in Manticore Search
+
+```mermaid
+graph TD
+    subgraph Input["Input Text: '测试文档'"]
+        direction LR
+        C1["测"]
+        C2["试"]
+        C3["文"]
+        C4["档"]
+    end
+
+    subgraph Ngram["Ngram Tokenization (n=2)"]
+        direction LR
+        T1["测试"]
+        T2["试文"]
+        T3["文档"]
+    end
+
+    subgraph Index["Manticore Index"]
+        direction LR
+        I1["测试: doc1, doc2"]
+        I2["试文: doc1"]
+        I3["文档: doc1, doc3"]
+    end
+
+    subgraph Search["Search Process"]
+        direction LR
+        Q1["Query: '测试'"]
+        Q2["Match: '测试'"]
+        Q3["Results: doc1, doc2"]
+    end
+
+    Input --> Ngram
+    Ngram --> Index
+    Q1 --> Q2
+    Q2 --> Index
+    Index --> Q3
+```
+
+This diagram illustrates how Manticore Search handles Chinese text using ngram tokenization:
+
+1. **Input Text**: The Chinese text "测试文档" (test document)
+2. **Ngram Tokenization**: 
+   - With n=2, it creates overlapping 2-character tokens
+   - "测试文档" → ["测试", "试文", "文档"]
+3. **Manticore Index**:
+   - Each token is stored with document references
+   - Shows which documents contain each token
+4. **Search Process**:
+   - When searching for "测试"
+   - Manticore finds matching documents (doc1, doc2)
+   - Returns results based on token matches
+
+The ngram approach is particularly effective for Chinese because:
+- It doesn't require a dictionary
+- It can handle unknown words
+- It's fast for indexing and searching
+- It works well with Manticore's search algorithms
+
 ## Manticore Search Architecture
 
 Manticore Search is a powerful full-text search engine that provides multiple interfaces for different use cases:
