@@ -7,7 +7,7 @@
 services:
   # PostgreSQL service configuration
   postgres:
-    image: postgres:15                    # Use PostgreSQL 15
+    image: postgres:14                    # Use PostgreSQL 14
     environment:
       POSTGRES_USER: postgres            # Database username
       POSTGRES_PASSWORD: postgres        # Database password
