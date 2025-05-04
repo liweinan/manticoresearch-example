@@ -101,15 +101,18 @@
                 return;
             }
 
-            searchResults.innerHTML = results.map(result => `
+            searchResults.innerHTML = results.map(result => {
+                const content = JSON.parse(result.content);
+                return `
                 <div class="result-item">
                     <div class="result-title">${result.title}</div>
-                    <div class="result-content">${result.content.text}</div>
+                    <div class="result-content">${content.text}</div>
                     <div class="result-tags">
-                        ${result.content.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                        ${content.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
                     </div>
                 </div>
-            `).join('');
+                `;
+            }).join('');
         }
     </script>
 </body>
