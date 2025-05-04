@@ -99,6 +99,8 @@ def wait_for_postgres(max_retries=10, delay=10):
                 print("Failed to connect to PostgreSQL after maximum retries")
                 print(f"Last error: {e}")
                 return False
+    return None
+
 
 def init_db():
     """
