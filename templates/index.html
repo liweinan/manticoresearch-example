@@ -59,6 +59,14 @@
             font-size: 12px;
             color: #666;
         }
+        .error-title {
+            color: red;
+            font-weight: bold;
+        }
+        .error-details {
+            margin-top: 5px;
+            font-size: 14px;
+        }
     </style>
 </head>
 <body>
@@ -85,32 +93,58 @@
         });
 
         async function performSearch(query) {
+            console.log('Starting search with query:', query);
+            console.log('Query type:', typeof query);
+            console.log('Query length:', query.length);
+            
             try {
-                const response = await fetch(`/search?q=${encodeURIComponent(query)}`);
-                const results = await response.json();
-                displayResults(results);
+                const response = await fetch('/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ q: query })
+                });
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                const text = await response.text();
+                console.log('Raw response:', text);
+                const data = JSON.parse(text);
+                console.log('Parsed response:', data);
+                if (data.error) {
+                    throw new Error(data.message);
+                }
+                displayResults(data);
             } catch (error) {
-                console.error('搜索出错:', error);
-                searchResults.innerHTML = '<div class="result-item">搜索时发生错误</div>';
+                console.error('Search error:', error);
+                searchResults.innerHTML = `
+                    <div class="result-item error">
+                        <div class="error-title">搜索时发生错误</div>
+                        <div class="error-details">${error.message}</div>
+                    </div>
+                `;
             }
         }
 
         function displayResults(results) {
-            if (!results.length) {
-                searchResults.innerHTML = '<div class="result-item">未找到相关结果</div>';
+            console.log('Displaying results:', results);
+            const resultsDiv = document.getElementById('searchResults');
+            if (!results || results.length === 0) {
+                resultsDiv.innerHTML = '<div class="result-item">未找到相关结果</div>';
                 return;
             }
-
-            searchResults.innerHTML = results.map(result => {
-                const content = JSON.parse(result.content);
+            
+            resultsDiv.innerHTML = results.map(result => {
+                console.log('Processing result:', result);
                 return `
-                <div class="result-item">
-                    <div class="result-title">${result.title}</div>
-                    <div class="result-content">${content.text}</div>
-                    <div class="result-tags">
-                        ${content.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                    <div class="result-item">
+                        <div class="result-title">${result.title || '无标题'}</div>
+                        <div class="result-content">${result.content || '无内容'}</div>
+                        <div class="result-tags">
+                            ${result.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}
+                        </div>
+                        <div class="result-weight">权重: ${result.weight || 0}</div>
                     </div>
-                </div>
                 `;
             }).join('');
         }

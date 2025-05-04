@@ -166,6 +166,18 @@ def init_db():
 
 # Initialize Flask application
 app = Flask(__name__)
+app.config['JSON_AS_ASCII'] = False  # Ensure proper UTF-8 encoding for JSON responses
+app.config['JSONIFY_MIMETYPE'] = 'application/json; charset=utf-8'  # Set proper MIME type
+
+# Disable HTML error pages
+@app.errorhandler(Exception)
+def handle_error(error):
+    response = jsonify({
+        'error': True,
+        'message': str(error)
+    })
+    response.status_code = 500
+    return response
 
 @app.route('/')
 def index():
@@ -181,59 +193,53 @@ def index():
 def search():
     """
     Handle search requests with detailed logging.
-    
-    This endpoint:
-    1. Accepts both GET and POST requests
-    2. Processes queries in both Chinese and English
-    3. Uses Jieba for Chinese word segmentation
-    4. Searches using Manticore Search
-    5. Returns results in JSON format
     """
-    # Get query from either GET parameters or POST JSON and ensure proper UTF-8 encoding
-    if request.method == 'GET':
-        query = request.args.get('q', '', type=str)
-        # Handle URL-encoded UTF-8
-        query = query.encode('latin1').decode('utf-8')
-    else:
-        query = request.json.get('q', '')
-    
-    # Log the received query
-    logger.debug(f"Received search query: {query}")
-    logger.debug(f"Query type: {type(query)}")
-    logger.debug(f"Query length: {len(query)}")
-    logger.debug(f"Query bytes: {query.encode('utf-8')}")
-    
     try:
-        # Log connection parameters (without password)
-        logger.debug(f"Connecting to Manticore with params: { {k:v for k,v in MANTICORE_PARAMS.items() if k != 'password'} }")
+        # Get query from either GET parameters or POST JSON
+        if request.method == 'GET':
+            query = request.args.get('q', '', type=str)
+            logger.debug(f"GET request received with query: {query}")
+            # Handle URL-encoded UTF-8
+            query = query.encode('latin1').decode('utf-8')
+        else:
+            query = request.json.get('q', '')
+            logger.debug(f"POST request received with query: {query}")
         
-        # Connect to Manticore Search using the configured parameters
+        # Log the received query in detail
+        logger.debug(f"Query details:")
+        logger.debug(f"- Type: {type(query)}")
+        logger.debug(f"- Length: {len(query)}")
+        logger.debug(f"- Bytes: {query.encode('utf-8')}")
+        # Check if query contains Chinese characters
+        is_chinese = any('\u4e00' <= char <= '\u9fff' for char in query)
+        logger.debug(f"- Is Chinese: {is_chinese}")
+        
+        # Connect to Manticore
+        logger.debug("Attempting to connect to Manticore...")
         connection = mysql.connector.connect(**MANTICORE_PARAMS)
-        logger.debug("Connected to Manticore")
+        logger.debug("Successfully connected to Manticore")
         
         cursor = connection.cursor(dictionary=True)
         
-        # Tokenize the query using Jieba for Chinese text
+        # Tokenize the query
+        logger.debug("Starting Jieba tokenization...")
         tokens = list(jieba.cut(query))
         logger.debug(f"Jieba tokens: {tokens}")
         
-        # Quote each token and ensure proper UTF-8 encoding
+        # Process tokens
         search_terms = []
         for token in tokens:
-            # Skip empty tokens
             if not token.strip():
                 continue
-            # Log each token's encoding
             logger.debug(f"Processing token: {token}")
-            logger.debug(f"Token bytes: {token.encode('utf-8')}")
-            # Keep the token as is, since it's already properly encoded
+            logger.debug(f"- Token bytes: {token.encode('utf-8')}")
+            logger.debug(f"- Token length: {len(token)}")
             search_terms.append(f'"{token}"')
         
         search_query = ' '.join(search_terms)
-        logger.debug(f"Tokenized and quoted query: {search_query}")
-        logger.debug(f"Final query bytes: {search_query.encode('utf-8')}")
+        logger.debug(f"Final search query: {search_query}")
         
-        # Build and execute the search query
+        # Execute search
         sql = """
         SELECT id, title, content, WEIGHT() as weight 
         FROM documents_idx 
@@ -243,39 +249,63 @@ def search():
         """
         
         logger.debug(f"Executing SQL query: {sql % search_query}")
-        cursor.execute(sql, (search_query,))
+        try:
+            cursor.execute(sql, (search_query,))
+            logger.debug("SQL query executed successfully")
+        except Exception as e:
+            logger.error(f"SQL query execution failed: {str(e)}")
+            logger.error(f"Query that failed: {sql % search_query}")
+            return jsonify({
+                'error': True,
+                'message': f"SQL query execution failed: {str(e)}",
+                'query': query
+            }), 500
         
         results = cursor.fetchall()
         logger.debug(f"Found {len(results)} results")
-        if results:
-            logger.debug(f"First result content: {results[0]['content']}")
         
-        # Process results to extract text from JSON content
+        # Process results
         processed_results = []
         for result in results:
-            content_json = json.loads(result['content'])
-            processed_result = {
-                'id': result['id'],
-                'title': result['title'],
-                'content': result['content'],
-                'content_text': content_json['text'],
-                'weight': result['weight']
-            }
-            processed_results.append(processed_result)
+            try:
+                logger.debug(f"Processing result: {result['id']}")
+                content_json = json.loads(result['content'])
+                processed_result = {
+                    'id': result['id'],
+                    'title': result['title'],
+                    'content': content_json.get('text', ''),
+                    'tags': content_json.get('tags', []),
+                    'weight': result['weight']
+                }
+                processed_results.append(processed_result)
+                logger.debug(f"Successfully processed result {result['id']}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing content JSON: {str(e)}")
+                logger.error(f"Raw content: {result['content']}")
+                processed_result = {
+                    'id': result['id'],
+                    'title': result['title'],
+                    'content': result['content'],
+                    'tags': [],
+                    'weight': result['weight']
+                }
+                processed_results.append(processed_result)
         
+        # Close connections
         cursor.close()
         connection.close()
         
+        # Return results
+        logger.debug(f"Returning {len(processed_results)} processed results")
         return jsonify(processed_results)
         
-    except mysql.connector.Error as e:
-        # Log MySQL-specific errors with more detail
-        logger.error(f"MySQL Error during search: {str(e)}", exc_info=True)
-        return jsonify({'error': f"Database error: {str(e)}"}), 500
     except Exception as e:
-        # Log other errors with full stack trace
-        logger.error(f"Error during search: {str(e)}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Search error: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': True,
+            'message': str(e),
+            'query': query
+        }), 500
 
 if __name__ == '__main__':
     # Initialize database and start the Flask application
